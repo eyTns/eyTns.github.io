@@ -1,5 +1,5 @@
 # eyTns.github.io
-https://eyTns.github.io  
+https://eyTns.github.io
 일단 생각나는것부터 아무거나 해보는 레포입니다  
 
 # 210512
@@ -25,4 +25,6 @@ Git 명령어...를 알아야될까? 나중에 알아야될 일이 생길수도 
 
 # 210525
 🌟 [테트리스 만드는 영상](https://www.youtube.com/watch?v=1lNy2mhvLFk) 이거 무작정 따라하기  
+🌟 md는 [마크다운 문법](https://heropy.blog/2017/09/30/markdown/)을 사용하는 파일에 대한 확장자다. 링크 참고.  
+
 

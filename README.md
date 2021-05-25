@@ -1,4 +1,5 @@
 # eyTns.github.io
+https://eyTns.github.io  
 일단 생각나는것부터 아무거나 해보는 레포입니다  
 
 # 210512
@@ -23,6 +24,5 @@ Git 명령어...를 알아야될까? 나중에 알아야될 일이 생길수도 
 로컬로 관리하느라 여기엔 업데이트 안했다  
 
 # 210525
-https://www.youtube.com/watch?v=1lNy2mhvLFk  
-🌟 이거 무작정 따라하기  
+🌟 [테트리스 만드는 영상](https://www.youtube.com/watch?v=1lNy2mhvLFk) 이거 무작정 따라하기  
 

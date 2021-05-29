@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<body>
+<br>
+<br>
+<br>
+    <input type="button" id="hw" value="Hello world" /> <br>
+    <script type="text/javascript">
+        var hw = document.getElementById('hw');
+        hw.addEventListener('click', function(){ alert('Hello world'); })
+    </script>
+    <input type="button" onclick="alert(window.location)" value="alert(window.location)" /> <br>
+    <input type="text" name="input_n" size="20"/> <br>
+    <input type="text" name="input_n2" /> <br>
+<br>
+<br>
+<br>
+
+    n = <input type="text" name="input_n" size="20"/> <br>
+    <input type="button" id="input_button" value="찍기" /> <br><br>
+    <script type="text/javascript">
+        var input_button_element = document.getElementById("input_button");
+	var n = document.getElementById("input_n").value;
+	var result = '*'.repeat(n);
+        input_button_element.addEventListener('click', function(){ alert(result); })
+    </script>
+
+    <form>
+        텍스트 영역 1<br>
+	<textarea name="ta1" wrap="off"></textarea> <br><br>
+        텍스트 영역 2<br>
+	<textarea name="ta2" wrap="virtual"></textarea> <br><br>
+        텍스트 영역 3<br>
+	<textarea name="ta3" wrap="physical"></textarea> <br><br>
+    </form>
+ 
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<input type="button" onclick="window.open('index.html')" value="인덱스" /> <br><br>
+<input type="button" onclick="window.open('starjjikgi.html')" value="별찍기" /> <br><br>
+<input type="button" onclick="window.open('sandbox.html')" value="아무거나" /> <br><br>
+<input type="button" onclick="window.open('https://github.com/eyTns/eyTns.github.io')" value="레포지토리 페이지" /> <br><br>
+
+
+
+</body>
+</html>

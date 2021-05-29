@@ -189,17 +189,17 @@ init();
 // event handling
 document.addEventListener("keydown", e=>
 {
-    switch(e.keyCode)
+    switch(e.key)
     {
-        case 37: // left
+        case 'ArrowLeft':
             moveBlock("left",-1); break;
-        case 39: // right
+        case 'ArrowRight':
             moveBlock("left",1); break;
-        case 40: // down
+        case 'ArrowDown':
             moveBlock("top",1); break;
-        case 38: // up
-            rotateBlock(); break; // need rotate
-        case 32:
+        case 'ArrowUp':
+            rotateBlock(); break;
+        case ' ':
             dropBlock(); break;
         default:
             break;

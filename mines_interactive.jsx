@@ -3,7 +3,9 @@ const { useState, useMemo, useRef, useEffect, useCallback } = React;
 // ===== 1. 상수 =====
 const EXAMPLES = [
   { name:'Q1 small', data:`3 5\n24531\n46631\n34310` },
+  { name:'Q6 small', data:`7 6\n233332\n355553\n355553\n355553\n355553\n355553\n244442` },
   { name:'Q7 small', data:`7 7\n2333332\n3444442\n3444442\n3444442\n3444442\n3444442\n2222220` },
+  { name:'Q8 small', data:`5 7\n2333332\n3555554\n3555554\n3555554\n2333332` },
 ];
 const CS = 32;
 const BTN = { padding:'6px 14px', borderRadius:6, border:'1px solid #cbd5e1', background:'#f8fafc', cursor:'pointer', fontSize:13, fontFamily:'system-ui,sans-serif' };
@@ -12,6 +14,13 @@ const BD = { 0:'#e2e8f0', 1:'#fecaca', 2:'#93c5fd' };
 
 // ===== 솔버 로직 =====
 const _inB=(H,W,r,c)=>r>=0&&r<H&&c>=0&&c<W;
+function _canMine(grid,cur,H,W,r,c){
+  for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+    const ni=r+di,nj=c+dj;
+    if(_inB(H,W,ni,nj)&&solverGetRem(grid,cur,H,W,ni,nj)<=0) return false;
+  }
+  return true;
+}
 
 function solverGetRem(grid,cur,H,W,i,j){
   let c=0;
@@ -33,7 +42,7 @@ function solverClearNegatives(grid,cur,H,W){
   }
 }
 
-function solverFindBatch(grid,cur,H,W){
+function _findOneRule(grid,cur,H,W,pos){
   const collect=(list)=>{
     const blanks=[];let mc=0;
     for(const [r,c] of list){
@@ -42,69 +51,90 @@ function solverFindBatch(grid,cur,H,W){
     }
     return {blanks,mc};
   };
-  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
-    const rv=solverGetRem(grid,cur,H,W,i,j);
-    const blanks=[];
-    for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-      const ni=i+di,nj=j+dj;
-      if(_inB(H,W,ni,nj)&&cur[ni][nj]===0) blanks.push([ni,nj]);
-    }
-    if(blanks.length>0){
-      if(rv===0){ blanks.forEach(([r,c])=>{cur[r][c]=2;}); return blanks.length; }
-      if(rv>0&&rv===blanks.length){ blanks.forEach(([r,c])=>{cur[r][c]=1;}); return blanks.length; }
-    }
-    if(i<H-1){
-      const aL=[],dL=[];
-      for(let dc=-1;dc<=1;dc++){if(_inB(H,W,i-1,j+dc))aL.push([i-1,j+dc]);if(_inB(H,W,i+2,j+dc))dL.push([i+2,j+dc]);}
-      const a=collect(aL),d=collect(dL);
-      const adj=(grid[i+1][j]-grid[i][j])-d.mc+a.mc;
-      if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
-        let n=0;
-        d.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-        a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-        if(n>0) return n;
-      } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
-        let n=0;
-        a.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-        d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-        if(n>0) return n;
+  const found=(i,j,n)=>{
+    pos.i=Math.max(0,i-1);pos.j=Math.max(0,j-1);
+    return n;
+  };
+  for(let i=pos.i;i<H;i++){
+    const j0=(i===pos.i)?pos.j:0;
+    for(let j=j0;j<W;j++){
+      const rv=solverGetRem(grid,cur,H,W,i,j);
+      const blanks=[];
+      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+        const ni=i+di,nj=j+dj;
+        if(_inB(H,W,ni,nj)&&cur[ni][nj]===0) blanks.push([ni,nj]);
       }
-    }
-    if(j<W-1){
-      const aL=[],dL=[];
-      for(let dr=-1;dr<=1;dr++){if(_inB(H,W,i+dr,j-1))aL.push([i+dr,j-1]);if(_inB(H,W,i+dr,j+2))dL.push([i+dr,j+2]);}
-      const a=collect(aL),d=collect(dL);
-      const adj=(grid[i][j+1]-grid[i][j])-d.mc+a.mc;
-      if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
-        let n=0;
-        d.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-        a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-        if(n>0) return n;
-      } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
-        let n=0;
-        a.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-        d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-        if(n>0) return n;
+      if(blanks.length>0){
+        if(rv===0){ blanks.forEach(([r,c])=>{cur[r][c]=2;}); return found(i,j,blanks.length); }
+        if(rv>0&&rv===blanks.length){ let n=0;blanks.forEach(([r,c])=>{if(_canMine(grid,cur,H,W,r,c)){cur[r][c]=1;n++;}});if(n>0) return found(i,j,n); }
+      }
+      if(i<H-1){
+        const aL=[],dL=[];
+        for(let dc=-1;dc<=1;dc++){if(_inB(H,W,i-1,j+dc))aL.push([i-1,j+dc]);if(_inB(H,W,i+2,j+dc))dL.push([i+2,j+dc]);}
+        const a=collect(aL),d=collect(dL);
+        const adj=(grid[i+1][j]-grid[i][j])-d.mc+a.mc;
+        if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
+          let n=0;
+          d.blanks.forEach(([r,c])=>{if(_canMine(grid,cur,H,W,r,c)){cur[r][c]=1;n++;}});
+          a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+          if(n>0) return found(i,j,n);
+        } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
+          let n=0;
+          a.blanks.forEach(([r,c])=>{if(_canMine(grid,cur,H,W,r,c)){cur[r][c]=1;n++;}});
+          d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+          if(n>0) return found(i,j,n);
+        }
+      }
+      if(j<W-1){
+        const aL=[],dL=[];
+        for(let dr=-1;dr<=1;dr++){if(_inB(H,W,i+dr,j-1))aL.push([i+dr,j-1]);if(_inB(H,W,i+dr,j+2))dL.push([i+dr,j+2]);}
+        const a=collect(aL),d=collect(dL);
+        const adj=(grid[i][j+1]-grid[i][j])-d.mc+a.mc;
+        if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
+          let n=0;
+          d.blanks.forEach(([r,c])=>{if(_canMine(grid,cur,H,W,r,c)){cur[r][c]=1;n++;}});
+          a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+          if(n>0) return found(i,j,n);
+        } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
+          let n=0;
+          a.blanks.forEach(([r,c])=>{if(_canMine(grid,cur,H,W,r,c)){cur[r][c]=1;n++;}});
+          d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+          if(n>0) return found(i,j,n);
+        }
       }
     }
   }
   return 0;
 }
 
-function solverFillSafe(grid,cur,H,W){
+function solverFindBatch(grid,cur,H,W,limit,pos){
+  let total=0;
+  while(total<limit){
+    const found=_findOneRule(grid,cur,H,W,pos);
+    if(!found) break;
+    total+=found;
+  }
+  return total;
+}
+
+function solverFillSafe(grid,cur,H,W,limit,pos){
   let count=0;
-  for(let i=0;i<H&&count<100;i++) for(let j=0;j<W&&count<100;j++){
-    if(solverGetRem(grid,cur,H,W,i,j)===0){
-      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-        if(count>=100) break;
-        const ni=i+di,nj=j+dj;
-        if(_inB(H,W,ni,nj)&&cur[ni][nj]===0){
-          cur[ni][nj]=2;
-          count++;
+  for(let i=pos.i;i<H&&count<limit;i++){
+    const j0=(i===pos.i)?pos.j:0;
+    for(let j=j0;j<W&&count<limit;j++){
+      if(solverGetRem(grid,cur,H,W,i,j)===0){
+        for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+          if(count>=limit) break;
+          const ni=i+di,nj=j+dj;
+          if(_inB(H,W,ni,nj)&&cur[ni][nj]===0){
+            cur[ni][nj]=2;
+            count++;
+          }
         }
       }
     }
   }
+  pos.i=H;pos.j=0;
   return count;
 }
 
@@ -141,7 +171,15 @@ function downloadBlob(blob,filename){
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);
 }
 
-// ===== Q7 패턴 =====
+// ===== Q6/Q7 패턴 =====
+function generateQ6(H,W){
+  const n=Array.from({length:H},()=>Array(W).fill(0));
+  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
+    if(i%3===1) n[i][j]=(j%3===1)?1:0;
+    else n[i][j]=(j%3!==1)?1:0;
+  }
+  return n;
+}
 function generateQ7(H,W){
   const n=Array.from({length:H},()=>Array(W).fill(0));
   for(let i=0;i<H;i++) for(let j=0;j<W;j++){
@@ -183,6 +221,7 @@ function MinesSolver() {
   const cvRef = useRef(null);
   const fiRef = useRef(null);
   const ctRef = useRef(null);
+  const jumpRef = useRef(0);
 
   // ===== 3. 입력 =====
   const parseInput = useCallback((txt) => {
@@ -329,6 +368,8 @@ function MinesSolver() {
     solverClearNegatives(grid,cur,H,W);
 
     let phase='fill';
+    const fillPos={i:0,j:0};
+    const hintPos={i:0,j:0};
 
     const step=()=>{
       if(hintStopRef.current){
@@ -338,7 +379,7 @@ function MinesSolver() {
         setTimeout(()=>setHintMsg(''),3000); return;
       }
       if(phase==='fill'){
-        const filled=solverFillSafe(grid,cur,H,W);
+        const filled=solverFillSafe(grid,cur,H,W,100,fillPos);
         if(filled){
           totalCount+=filled;
           setCells(cur.map(r=>[...r]));
@@ -348,7 +389,7 @@ function MinesSolver() {
         }
         phase='hint';
       }
-      const found=solverFindBatch(grid,cur,H,W);
+      const found=solverFindBatch(grid,cur,H,W,100,hintPos);
       if(!found){
         hintRunRef.current=false; setHintUI(false);
         setCells(cur.map(r=>[...r]));
@@ -364,11 +405,18 @@ function MinesSolver() {
   },[grid,cells,H,W]);
 
   // ===== 9. 출력 =====
+  const applyQ6 = useCallback(()=>{
+    if(!grid) return;
+    pushHistory();
+    setCells(generateQ6(H,W));
+  },[grid,H,W]);
+
   const applyQ7 = useCallback(()=>{
     if(!grid) return;
     pushHistory();
     setCells(generateQ7(H,W));
   },[grid,H,W]);
+
 
   const exportResult=()=>{
     let o='';
@@ -384,6 +432,23 @@ function MinesSolver() {
   const doClear=()=>{
     if(H&&W){pushHistory();setCells(Array.from({length:H},()=>Array(W).fill(0)));}
   };
+
+  const jumpToUnsolved=useCallback(()=>{
+    if(!remaining||!ctRef.current) return;
+    const start=jumpRef.current+1;
+    const total=H*W;
+    for(let k=0;k<total;k++){
+      const idx=(start+k)%total;
+      const i=Math.floor(idx/W),j=idx%W;
+      if(remaining[i][j]!==0){
+        jumpRef.current=idx;
+        const ct=ctRef.current;
+        ct.scrollLeft=j*CS-ct.clientWidth/2+CS/2;
+        ct.scrollTop=i*CS-ct.clientHeight/2+CS/2;
+        return;
+      }
+    }
+  },[remaining,H,W]);
 
   // ===== 10. 렌더링 (뷰포트 가상화) =====
   const drawVisible = useCallback(()=>{
@@ -461,7 +526,8 @@ function MinesSolver() {
         {grid&&<button onClick={doClear} style={BTN}>🔄 초기화</button>}
         {grid&&!hintUI&&<button onClick={autoHint} style={{...BTN,background:'#fef3c7',borderColor:'#fbbf24'}}>✨ 자동 힌트</button>}
         {grid&&hintUI&&<button onClick={stopHint} style={{...BTN,background:'#fecaca',borderColor:'#f87171'}}>⏹ 중단</button>}
-        {grid&&<button onClick={applyQ7} style={{...BTN,background:'#e0e7ff',borderColor:'#818cf8'}}>🔷 Q7 패턴</button>}
+        {grid&&<button onClick={applyQ6} style={{...BTN,background:'#e0e7ff',borderColor:'#818cf8'}}>🔶 CRS 패턴</button>}
+        {grid&&<button onClick={applyQ7} style={{...BTN,background:'#e0e7ff',borderColor:'#818cf8'}}>🔷 DIA 패턴</button>}
         {grid&&<button onClick={saveProgress} style={BTN}>📥 진행 저장</button>}
         {grid&&<button onClick={exportResult} style={{...BTN,background:stats.solved?'#059669':'#3b82f6',color:'#fff',borderColor:stats.solved?'#059669':'#3b82f6'}}>💾 결과 내보내기</button>}
       </div>
@@ -483,7 +549,7 @@ function MinesSolver() {
             <span>🔵 <b>{stats.safe}</b></span>
             {stats.solved
               ?<span style={{color:'#059669',fontWeight:600}}>✅ 풀이 완료!</span>
-              :<span style={{color:'#dc2626'}}>⏳ 미해결 <b>{stats.wrong}</b>칸</span>}
+              :<span style={{color:'#dc2626'}}>⏳ 미해결 <b>{stats.wrong}</b>칸 <button onClick={jumpToUnsolved} style={{padding:'1px 6px',borderRadius:4,border:'1px solid #fca5a5',background:'#fff',cursor:'pointer',fontSize:12,verticalAlign:1}}>▶</button></span>}
             {hintMsg&&<span style={{color:'#b45309',fontWeight:500}}>{hintMsg}</span>}
           </div>
 

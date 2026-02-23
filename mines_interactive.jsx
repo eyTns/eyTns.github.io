@@ -282,12 +282,42 @@ function MinesSolver() {
       return 0;
     };
 
+    const fillSafe=()=>{
+      let count=0;
+      for(let i=0;i<H&&count<100;i++) for(let j=0;j<W&&count<100;j++){
+        if(getRem(i,j)===0){
+          for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+            if(count>=100) break;
+            const ni=i+di,nj=j+dj;
+            if(inB(ni,nj)&&cur[ni][nj]===0){
+              cur[ni][nj]=2;
+              count++;
+            }
+          }
+        }
+      }
+      return count;
+    };
+
+    let phase='fill';
+
     const step=()=>{
       if(hintStopRef.current){
         hintRunRef.current=false; setHintUI(false);
         setCells(cur.map(r=>[...r]));
         setHintMsg(`⏹ 중단 (${totalCount}칸)`);
         setTimeout(()=>setHintMsg(''),3000); return;
+      }
+      if(phase==='fill'){
+        const filled=fillSafe();
+        if(filled){
+          totalCount+=filled;
+          setCells(cur.map(r=>[...r]));
+          setHintMsg(`✨ ${totalCount}칸 표시 중...`);
+          setTimeout(step,30);
+          return;
+        }
+        phase='hint';
       }
       const found=findBatch();
       if(!found){

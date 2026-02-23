@@ -10,6 +10,161 @@ const BTN = { padding:'6px 14px', borderRadius:6, border:'1px solid #cbd5e1', ba
 const BG = { 0:'#f8fafc', 1:'#fee2e2', 2:'#dbeafe' };
 const BD = { 0:'#e2e8f0', 1:'#fecaca', 2:'#93c5fd' };
 
+// ===== 솔버 로직 =====
+const _inB=(H,W,r,c)=>r>=0&&r<H&&c>=0&&c<W;
+
+function solverGetRem(grid,cur,H,W,i,j){
+  let c=0;
+  for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+    const ni=i+di,nj=j+dj;
+    if(_inB(H,W,ni,nj)&&cur[ni][nj]===1) c++;
+  }
+  return grid[i][j]-c;
+}
+
+function solverClearNegatives(grid,cur,H,W){
+  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
+    if(solverGetRem(grid,cur,H,W,i,j)<0){
+      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+        const ni=i+di,nj=j+dj;
+        if(_inB(H,W,ni,nj)) cur[ni][nj]=0;
+      }
+    }
+  }
+}
+
+function solverFindBatch(grid,cur,H,W){
+  const collect=(list)=>{
+    const blanks=[];let mc=0;
+    for(const [r,c] of list){
+      if(cur[r][c]===0) blanks.push([r,c]);
+      else if(cur[r][c]===1) mc++;
+    }
+    return {blanks,mc};
+  };
+  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
+    const rv=solverGetRem(grid,cur,H,W,i,j);
+    const blanks=[];
+    for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+      const ni=i+di,nj=j+dj;
+      if(_inB(H,W,ni,nj)&&cur[ni][nj]===0) blanks.push([ni,nj]);
+    }
+    if(blanks.length>0){
+      if(rv===0){ blanks.forEach(([r,c])=>{cur[r][c]=2;}); return blanks.length; }
+      if(rv>0&&rv===blanks.length){ blanks.forEach(([r,c])=>{cur[r][c]=1;}); return blanks.length; }
+    }
+    if(i<H-1){
+      const aL=[],dL=[];
+      for(let dc=-1;dc<=1;dc++){if(_inB(H,W,i-1,j+dc))aL.push([i-1,j+dc]);if(_inB(H,W,i+2,j+dc))dL.push([i+2,j+dc]);}
+      const a=collect(aL),d=collect(dL);
+      const adj=(grid[i+1][j]-grid[i][j])-d.mc+a.mc;
+      if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
+        let n=0;
+        d.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
+        a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+        if(n>0) return n;
+      } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
+        let n=0;
+        a.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
+        d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+        if(n>0) return n;
+      }
+    }
+    if(j<W-1){
+      const aL=[],dL=[];
+      for(let dr=-1;dr<=1;dr++){if(_inB(H,W,i+dr,j-1))aL.push([i+dr,j-1]);if(_inB(H,W,i+dr,j+2))dL.push([i+dr,j+2]);}
+      const a=collect(aL),d=collect(dL);
+      const adj=(grid[i][j+1]-grid[i][j])-d.mc+a.mc;
+      if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
+        let n=0;
+        d.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
+        a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+        if(n>0) return n;
+      } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
+        let n=0;
+        a.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
+        d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
+        if(n>0) return n;
+      }
+    }
+  }
+  return 0;
+}
+
+function solverFillSafe(grid,cur,H,W){
+  let count=0;
+  for(let i=0;i<H&&count<100;i++) for(let j=0;j<W&&count<100;j++){
+    if(solverGetRem(grid,cur,H,W,i,j)===0){
+      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+        if(count>=100) break;
+        const ni=i+di,nj=j+dj;
+        if(_inB(H,W,ni,nj)&&cur[ni][nj]===0){
+          cur[ni][nj]=2;
+          count++;
+        }
+      }
+    }
+  }
+  return count;
+}
+
+// ===== 계산 로직 =====
+function calcRemaining(grid,cells,H,W){
+  const r=Array.from({length:H},()=>Array(W).fill(0));
+  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
+    let c=0;
+    for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
+      const ni=i+di,nj=j+dj;
+      if(ni>=0&&ni<H&&nj>=0&&nj<W&&cells[ni][nj]===1) c++;
+    }
+    r[i][j]=grid[i][j]-c;
+  }
+  return r;
+}
+
+function calcStats(cells,remaining,H,W){
+  let t=0,s=0,w=0;
+  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
+    if(cells[i][j]===1) t++;
+    if(cells[i][j]===2) s++;
+    if(remaining[i][j]!==0) w++;
+  }
+  return {total:t,safe:s,solved:w===0&&H>0,wrong:w};
+}
+
+// ===== 유틸 =====
+const sq=(bg,bd)=>({display:'inline-block',width:12,height:12,background:bg,border:`1px solid ${bd}`,verticalAlign:-2,marginRight:3,borderRadius:2});
+
+function downloadBlob(blob,filename){
+  const u=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=u;a.download=filename;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);
+}
+
+// ===== Q7 패턴 =====
+function generateQ7(H,W){
+  const n=Array.from({length:H},()=>Array(W).fill(0));
+  for(let i=0;i<H;i++) for(let j=0;j<W;j++){
+    if(i%3===1) n[i][j]=(j%3!==1)?1:0;
+    else n[i][j]=(j%3===1)?1:0;
+  }
+  return n;
+}
+
+// ===== 파싱 =====
+function parseGrid(txt){
+  const ls = txt.trim().split('\n').map(l=>l.trim()).filter(Boolean);
+  const [h,w] = ls[0].split(/\s+/).map(Number);
+  if(!h||!w||ls.length<h+1) throw new Error('형식 오류');
+  const g=[];
+  for(let i=0;i<h;i++){
+    const d=ls[i+1].split('').map(Number);
+    if(d.length!==w) throw new Error(`행${i+1} 너비 불일치`);
+    g.push(d);
+  }
+  return {h,w,grid:g};
+}
+
 function MinesSolver() {
   // ===== 2. State/Ref =====
   const [grid, setGrid] = useState(null);
@@ -32,15 +187,7 @@ function MinesSolver() {
   // ===== 3. 입력 =====
   const parseInput = useCallback((txt) => {
     try {
-      const ls = txt.trim().split('\n').map(l=>l.trim()).filter(Boolean);
-      const [h,w] = ls[0].split(/\s+/).map(Number);
-      if(!h||!w||ls.length<h+1) throw new Error('형식 오류');
-      const g=[];
-      for(let i=0;i<h;i++){
-        const d=ls[i+1].split('').map(Number);
-        if(d.length!==w) throw new Error(`행${i+1} 너비 불일치`);
-        g.push(d);
-      }
+      const {h,w,grid:g} = parseGrid(txt);
       setH(h);setW(w);setGrid(g);
       setCells(Array.from({length:h},()=>Array(w).fill(0)));
       setHistory([]);setHintMsg('');
@@ -71,27 +218,12 @@ function MinesSolver() {
   // ===== 4. 계산 =====
   const remaining = useMemo(()=>{
     if(!grid||!cells) return null;
-    const r=Array.from({length:H},()=>Array(W).fill(0));
-    for(let i=0;i<H;i++) for(let j=0;j<W;j++){
-      let c=0;
-      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-        const ni=i+di,nj=j+dj;
-        if(ni>=0&&ni<H&&nj>=0&&nj<W&&cells[ni][nj]===1) c++;
-      }
-      r[i][j]=grid[i][j]-c;
-    }
-    return r;
+    return calcRemaining(grid,cells,H,W);
   },[grid,cells,H,W]);
 
   const stats = useMemo(()=>{
     if(!cells||!remaining) return {total:0,safe:0,solved:false,wrong:0};
-    let t=0,s=0,w=0;
-    for(let i=0;i<H;i++) for(let j=0;j<W;j++){
-      if(cells[i][j]===1) t++;
-      if(cells[i][j]===2) s++;
-      if(remaining[i][j]!==0) w++;
-    }
-    return {total:t,safe:s,solved:w===0&&H>0,wrong:w};
+    return calcStats(cells,remaining,H,W);
   },[cells,remaining,H,W]);
 
   // ===== 5. 유틸 =====
@@ -192,112 +324,9 @@ function MinesSolver() {
     setHistory(h=>{const x=[...h,cells.map(r=>[...r])];return x.length>100?x.slice(-100):x;});
 
     const cur=cells.map(r=>[...r]);
-    const inB=(r,c)=>r>=0&&r<H&&c>=0&&c<W;
     let totalCount=0;
 
-    const getRem0=(i,j)=>{
-      let c=0;
-      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-        const ni=i+di,nj=j+dj;
-        if(inB(ni,nj)&&cur[ni][nj]===1) c++;
-      }
-      return grid[i][j]-c;
-    };
-    for(let i=0;i<H;i++) for(let j=0;j<W;j++){
-      if(getRem0(i,j)<0){
-        for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-          const ni=i+di,nj=j+dj;
-          if(inB(ni,nj)) cur[ni][nj]=0;
-        }
-      }
-    }
-
-    const getRem=(i,j)=>{
-      let c=0;
-      for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-        const ni=i+di,nj=j+dj;
-        if(inB(ni,nj)&&cur[ni][nj]===1) c++;
-      }
-      return grid[i][j]-c;
-    };
-
-    const findBatch=()=>{
-      const collect=(list)=>{
-        const blanks=[];let mc=0;
-        for(const [r,c] of list){
-          if(cur[r][c]===0) blanks.push([r,c]);
-          else if(cur[r][c]===1) mc++;
-        }
-        return {blanks,mc};
-      };
-      for(let i=0;i<H;i++) for(let j=0;j<W;j++){
-        // Rule 1&2
-        const rv=getRem(i,j);
-        const blanks=[];
-        for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-          const ni=i+di,nj=j+dj;
-          if(inB(ni,nj)&&cur[ni][nj]===0) blanks.push([ni,nj]);
-        }
-        if(blanks.length>0){
-          if(rv===0){ blanks.forEach(([r,c])=>{cur[r][c]=2;}); return blanks.length; }
-          if(rv>0&&rv===blanks.length){ blanks.forEach(([r,c])=>{cur[r][c]=1;}); return blanks.length; }
-        }
-        // Rule 3 vertical
-        if(i<H-1){
-          const aL=[],dL=[];
-          for(let dc=-1;dc<=1;dc++){if(inB(i-1,j+dc))aL.push([i-1,j+dc]);if(inB(i+2,j+dc))dL.push([i+2,j+dc]);}
-          const a=collect(aL),d=collect(dL);
-          const adj=(grid[i+1][j]-grid[i][j])-d.mc+a.mc;
-          if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
-            let n=0;
-            d.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-            a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-            if(n>0) return n;
-          } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
-            let n=0;
-            a.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-            d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-            if(n>0) return n;
-          }
-        }
-        // Rule 3 horizontal
-        if(j<W-1){
-          const aL=[],dL=[];
-          for(let dr=-1;dr<=1;dr++){if(inB(i+dr,j-1))aL.push([i+dr,j-1]);if(inB(i+dr,j+2))dL.push([i+dr,j+2]);}
-          const a=collect(aL),d=collect(dL);
-          const adj=(grid[i][j+1]-grid[i][j])-d.mc+a.mc;
-          if(adj>0&&adj===d.blanks.length&&d.blanks.length>0){
-            let n=0;
-            d.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-            a.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-            if(n>0) return n;
-          } else if(adj<0&&-adj===a.blanks.length&&a.blanks.length>0){
-            let n=0;
-            a.blanks.forEach(([r,c])=>{cur[r][c]=1;n++;});
-            d.blanks.forEach(([r,c])=>{cur[r][c]=2;n++;});
-            if(n>0) return n;
-          }
-        }
-      }
-      return 0;
-    };
-
-    const fillSafe=()=>{
-      let count=0;
-      for(let i=0;i<H&&count<100;i++) for(let j=0;j<W&&count<100;j++){
-        if(getRem(i,j)===0){
-          for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++){
-            if(count>=100) break;
-            const ni=i+di,nj=j+dj;
-            if(inB(ni,nj)&&cur[ni][nj]===0){
-              cur[ni][nj]=2;
-              count++;
-            }
-          }
-        }
-      }
-      return count;
-    };
+    solverClearNegatives(grid,cur,H,W);
 
     let phase='fill';
 
@@ -309,7 +338,7 @@ function MinesSolver() {
         setTimeout(()=>setHintMsg(''),3000); return;
       }
       if(phase==='fill'){
-        const filled=fillSafe();
+        const filled=solverFillSafe(grid,cur,H,W);
         if(filled){
           totalCount+=filled;
           setCells(cur.map(r=>[...r]));
@@ -319,7 +348,7 @@ function MinesSolver() {
         }
         phase='hint';
       }
-      const found=findBatch();
+      const found=solverFindBatch(grid,cur,H,W);
       if(!found){
         hintRunRef.current=false; setHintUI(false);
         setCells(cur.map(r=>[...r]));
@@ -338,29 +367,18 @@ function MinesSolver() {
   const applyQ7 = useCallback(()=>{
     if(!grid) return;
     pushHistory();
-    const n=Array.from({length:H},()=>Array(W).fill(0));
-    for(let i=0;i<H;i++) for(let j=0;j<W;j++){
-      if(i%3===1) n[i][j]=(j%3!==1)?1:0;
-      else n[i][j]=(j%3===1)?1:0;
-    }
-    setCells(n);
+    setCells(generateQ7(H,W));
   },[grid,H,W]);
 
   const exportResult=()=>{
     let o='';
     for(let i=0;i<H;i++){for(let j=0;j<W;j++) o+=cells[i][j]===1?'X':'.';o+='\n';}
-    const b=new Blob([o],{type:'text/plain'});
-    const u=URL.createObjectURL(b);const a=document.createElement('a');
-    a.href=u;a.download='mines_output.txt';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);
+    downloadBlob(new Blob([o],{type:'text/plain'}),'mines_output.txt');
   };
 
   const saveProgress=()=>{
     const obj={_type:'mines_save',H,W,grid,cells};
-    const b=new Blob([JSON.stringify(obj)],{type:'application/json'});
-    const u=URL.createObjectURL(b);const a=document.createElement('a');
-    a.href=u;a.download='mines_progress.json';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);
+    downloadBlob(new Blob([JSON.stringify(obj)],{type:'application/json'}),'mines_progress.json');
   };
 
   const doClear=()=>{
@@ -423,7 +441,6 @@ function MinesSolver() {
   },[drawVisible]);
 
   // ===== 11. JSX =====
-  const sq=(bg,bd)=>({display:'inline-block',width:12,height:12,background:bg,border:`1px solid ${bd}`,verticalAlign:-2,marginRight:3,borderRadius:2});
 
   return (
     <div style={{fontFamily:'system-ui,sans-serif',maxWidth:960,margin:'0 auto',padding:16,color:'#1e293b'}}>

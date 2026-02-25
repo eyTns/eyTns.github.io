@@ -189,7 +189,7 @@ function PieceDisplay({ type, size=16, highlight=false }) {
 }
 
 // ===== Main Component =====
-function TinyTetris() {
+function TinyGame() {
   const [pieceSeq, setPieceSeq] = useState([]);
   const [totalPieces, setTotalPieces] = useState(0);
   const [grid, setGrid] = useState(createEmptyGrid());
@@ -490,7 +490,7 @@ function TinyTetris() {
       <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:4}}>
         <span style={{fontSize:26}}>&#x1F9E9;</span>
         <div>
-          <h2 style={{margin:0, fontSize:19}}>Tiny Tetris Interactive</h2>
+          <h2 style={{margin:0, fontSize:19}}>Tiny Interactive</h2>
           <p style={{margin:0, fontSize:12, color:'#94a3b8'}}>
             1-9 키: 열 선택 &middot; Ctrl+Z: 되돌리기 &middot; 클릭으로 열 선택
           </p>

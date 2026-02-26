@@ -225,6 +225,9 @@ function TinyGame() {
   const [flashRows, setFlashRows] = useState([]);
   const [q1Pos, setQ1Pos] = useState(null); // null=not in cycle, 0-17=position within 18-step cycle
   const [q1Running, setQ1Running] = useState(false); // auto-play running flag
+  const [customSeqs, setCustomSeqs] = useState([]); // array of number arrays, e.g. [[2,5,8],[1,3]]
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customInputVal, setCustomInputVal] = useState('');
 
   const cvRef = useRef(null);
   const fiRef = useRef(null);
@@ -333,6 +336,7 @@ function TinyGame() {
           setGameOver(obj.gameOver || false);
           setGameOverReason(obj.gameOverReason || '');
           setHistory([]);
+          if (Array.isArray(obj.customSeqs)) setCustomSeqs(obj.customSeqs);
           return;
         }
       } catch(_) {}
@@ -343,9 +347,9 @@ function TinyGame() {
   }, [parseInput]);
 
   const saveProgress = useCallback(() => {
-    const obj = { _type:'tiny_save', grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason };
+    const obj = { _type:'tiny_save', grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason, customSeqs };
     downloadBlob(new Blob([JSON.stringify(obj)], {type:'application/json'}), 'tiny_progress.json');
-  }, [grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason]);
+  }, [grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason, customSeqs]);
 
   const runQ1Strategy1 = useCallback(() => {
     if (q1Running) {
@@ -505,6 +509,7 @@ function TinyGame() {
 
   const seq147StopRef = useRef(false);
   const seqQ1StopRef = useRef(false);
+  const customStopRef = useRef(false);
 
   const handleSeq147 = useCallback(() => {
     if (gameOver || curIdx >= pieceSeq.length) return;
@@ -515,6 +520,20 @@ function TinyGame() {
     if (gameOver || curIdx >= pieceSeq.length) return;
     runSeqBatch(Q1_COLS, seqQ1StopRef);
   }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
+
+  const handleCustomSeq = useCallback((seq) => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    runSeqBatch(seq, customStopRef);
+  }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
+
+  const addCustomSeq = useCallback((input) => {
+    const digits = input.replace(/[^1-9]/g, '');
+    if (digits.length === 0) return;
+    const seq = digits.split('').map(Number);
+    setCustomSeqs(prev => [...prev, seq]);
+    setCustomInputVal('');
+    setShowCustomInput(false);
+  }, []);
 
   const exportResult = useCallback(() => {
     const output = colChoices.join('\n') + '\n';
@@ -798,9 +817,32 @@ function TinyGame() {
                     );
                   })}
                 </div>
-                <div style={{display:'flex', gap:4, marginTop:8}}>
+                <div style={{display:'flex', gap:4, marginTop:8, flexWrap:'wrap', alignItems:'center'}}>
                   <button onClick={handleSeq147} style={{...BTN, fontSize:12, fontWeight:600}}>147</button>
                   <button onClick={handleSeqQ1} style={{...BTN, fontSize:12, fontWeight:600}}>{Q1_COLS.join('')}</button>
+                  {customSeqs.map((seq, i) => (
+                    <button key={i} onClick={() => handleCustomSeq(seq)} style={{...BTN, fontSize:12, fontWeight:600}}>{seq.join('')}</button>
+                  ))}
+                  {showCustomInput ? (
+                    <span style={{display:'inline-flex', alignItems:'center', gap:2}}>
+                      <input
+                        autoFocus
+                        value={customInputVal}
+                        onChange={e => setCustomInputVal(e.target.value.replace(/[^1-9]/g, ''))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.stopPropagation(); addCustomSeq(customInputVal); }
+                          if (e.key === 'Escape') { setShowCustomInput(false); setCustomInputVal(''); }
+                          e.stopPropagation();
+                        }}
+                        placeholder="숫자열"
+                        style={{width:80, fontSize:12, padding:'4px 6px', borderRadius:4, border:'1px solid #93c5fd', fontFamily:'monospace', outline:'none'}}
+                      />
+                      <button onClick={() => addCustomSeq(customInputVal)} style={{...BTN, fontSize:12, padding:'4px 8px'}}>&#x2714;</button>
+                      <button onClick={() => { setShowCustomInput(false); setCustomInputVal(''); }} style={{...BTN, fontSize:12, padding:'4px 8px'}}>&#x2716;</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setShowCustomInput(true)} style={{...BTN, fontSize:14, fontWeight:700, padding:'4px 10px'}}>+</button>
+                  )}
                 </div>
               </div>
             )}

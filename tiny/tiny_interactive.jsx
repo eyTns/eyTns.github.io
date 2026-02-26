@@ -61,26 +61,6 @@ function matchesPattern(seq, startIdx, pattern) {
   return true;
 }
 
-function applyStrategy(grid, seq, startIdx, pattern, cols) {
-  let g = grid;
-  let idx = startIdx;
-  let choices = [];
-  let lines = 0;
-  let rounds = 0;
-  while (isGridEmpty(g) && matchesPattern(seq, idx, pattern)) {
-    for (let i = 0; i < pattern.length; i++) {
-      const result = executeMove(g, pattern[i], cols[i]);
-      if (!result.success) return { g, idx, choices, lines, rounds, error: result.reason };
-      g = result.grid;
-      lines += result.cleared;
-      choices.push(cols[i]);
-    }
-    idx += pattern.length;
-    rounds++;
-  }
-  return { g, idx, choices, lines, rounds, error: null };
-}
-
 // ===== Pure Game Logic =====
 function createEmptyGrid() {
   return Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(0));
@@ -242,6 +222,7 @@ function TinyGame() {
   const [hoveredCol, setHoveredCol] = useState(null);
   const [ghostCells, setGhostCells] = useState([]);
   const [flashRows, setFlashRows] = useState([]);
+  const [q1Pos, setQ1Pos] = useState(null); // null=not in cycle, 0-17=position within 18-step cycle
 
   const cvRef = useRef(null);
   const fiRef = useRef(null);
@@ -259,6 +240,7 @@ function TinyGame() {
     setHistory([]);
     setHoveredCol(null);
     setGhostCells([]);
+    setQ1Pos(null);
   }, []);
 
   const resetGame = useCallback(() => {
@@ -267,11 +249,11 @@ function TinyGame() {
 
   const pushHistory = useCallback(() => {
     setHistory(h => {
-      const entry = { grid:grid.map(r=>[...r]), curIdx, colChoices:[...colChoices], linesCleared, gameOver, gameOverReason };
+      const entry = { grid:grid.map(r=>[...r]), curIdx, colChoices:[...colChoices], linesCleared, gameOver, gameOverReason, q1Pos };
       const n = [...h, entry];
       return n.length > 500 ? n.slice(-500) : n;
     });
-  }, [grid, curIdx, colChoices, linesCleared, gameOver, gameOverReason]);
+  }, [grid, curIdx, colChoices, linesCleared, gameOver, gameOverReason, q1Pos]);
 
   const undo = useCallback(() => {
     setHistory(h => {
@@ -283,6 +265,7 @@ function TinyGame() {
       setLinesCleared(prev.linesCleared);
       setGameOver(prev.gameOver);
       setGameOverReason(prev.gameOverReason);
+      setQ1Pos(prev.q1Pos ?? null);
       setHoveredCol(null);
       setGhostCells([]);
       return h.slice(0,-1);
@@ -359,22 +342,31 @@ function TinyGame() {
 
   const runQ1Strategy1 = useCallback(() => {
     if (gameOver || curIdx >= pieceSeq.length) return;
-    if (!isGridEmpty(grid)) return;
-    if (!matchesPattern(pieceSeq, curIdx, Q1_PATTERN)) return;
+    // Determine position in cycle
+    let pos = q1Pos;
+    if (pos === null) {
+      // Starting new cycle: board must be empty and pattern must match
+      if (!isGridEmpty(grid) || !matchesPattern(pieceSeq, curIdx, Q1_PATTERN)) return;
+      pos = 0;
+    }
+    const col = Q1_COLS[pos];
     pushHistory();
-    const result = applyStrategy(grid, pieceSeq, curIdx, Q1_PATTERN, Q1_COLS);
-    if (result.error) {
+    const result = executeMove(grid, pieceSeq[curIdx], col);
+    if (!result.success) {
       setGameOver(true);
-      setGameOverReason(result.error);
+      setGameOverReason(result.reason);
       return;
     }
-    setGrid(result.g);
-    setCurIdx(curIdx + result.choices.length);
-    setColChoices([...colChoices, ...result.choices]);
-    setLinesCleared(linesCleared + result.lines);
+    setGrid(result.grid);
+    setCurIdx(curIdx + 1);
+    setColChoices([...colChoices, col]);
+    setLinesCleared(linesCleared + result.cleared);
     setHoveredCol(null);
     setGhostCells([]);
-  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, pushHistory]);
+    // Advance cycle position
+    const nextPos = pos + 1;
+    setQ1Pos(nextPos >= Q1_COLS.length ? null : nextPos);
+  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos, pushHistory]);
 
   const exportResult = useCallback(() => {
     const output = colChoices.join('\n') + '\n';
@@ -537,8 +529,10 @@ function TinyGame() {
   const isComplete = pieceSeq.length > 0 && curIdx >= pieceSeq.length && !gameOver;
   const validCols = currentPiece ? getValidColumns(currentPiece) : [];
 
-  const canQ1S1 = pieceSeq.length > 0 && !gameOver && !isComplete
-    && isGridEmpty(grid) && matchesPattern(pieceSeq, curIdx, Q1_PATTERN);
+  const canQ1S1 = pieceSeq.length > 0 && !gameOver && !isComplete && (
+    q1Pos !== null ||
+    (isGridEmpty(grid) && matchesPattern(pieceSeq, curIdx, Q1_PATTERN))
+  );
 
   // Next pieces (up to 5)
   const nextPieces = pieceSeq.slice(curIdx + 1, curIdx + 6);
@@ -567,7 +561,7 @@ function TinyGame() {
         ))}
         {pieceSeq.length > 0 && <button onClick={undo} disabled={!history.length} style={{...BTN, opacity:history.length?1:.4}}>&#x21A9; 되돌리기</button>}
         {pieceSeq.length > 0 && <button onClick={resetGame} style={BTN}>&#x1F504; 초기화</button>}
-        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background:'#fef3c7', borderColor:'#fbbf24', fontWeight:600}}>Q1 전략1</button>}
+        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background:'#fef3c7', borderColor:'#fbbf24', fontWeight:600}}>Q1 전략1{q1Pos !== null ? ` (${q1Pos}/${Q1_COLS.length})` : ''}</button>}
         {pieceSeq.length > 0 && <button onClick={saveProgress} style={BTN}>&#x1F4E5; 진행 저장</button>}
         {pieceSeq.length > 0 && <button onClick={exportResult} style={{...BTN, background: isComplete?'#059669':'#3b82f6', color:'#fff', borderColor: isComplete?'#059669':'#3b82f6'}}>&#x1F4BE; 결과 내보내기</button>}
       </div>

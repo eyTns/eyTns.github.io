@@ -62,6 +62,69 @@ function matchesPattern(seq, startIdx, pattern) {
   return true;
 }
 
+// ===== Cycle Detection =====
+// Segments the piece sequence into consecutive runs of repeating patterns.
+// Each segment: { pattern: number[], start: number, end: number, reps: number, partial: number }
+function detectCycles(seq) {
+  const segments = [];
+  let i = 0;
+
+  while (i < seq.length) {
+    let found = false;
+    const remaining = seq.length - i;
+
+    for (let L = 1; L <= Math.floor(remaining / 2); L++) {
+      let reps = 1;
+      let j = i + L;
+      while (j + L <= seq.length) {
+        let match = true;
+        for (let k = 0; k < L; k++) {
+          if (seq[j + k] !== seq[i + k]) { match = false; break; }
+        }
+        if (!match) break;
+        reps++;
+        j += L;
+      }
+
+      if (reps >= 2) {
+        // Check for partial match only at the very end of the sequence
+        let partial = 0;
+        for (let k = 0; k < L && j + k < seq.length; k++) {
+          if (seq[j + k] === seq[i + k]) partial++;
+          else break;
+        }
+        // Only absorb partial if it reaches the end of the sequence
+        if (j + partial < seq.length) partial = 0;
+
+        segments.push({
+          pattern: seq.slice(i, i + L),
+          start: i,
+          end: j + partial - 1,
+          reps,
+          partial,
+        });
+        i = j + partial;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      // Remaining elements don't form a repeating pattern
+      segments.push({
+        pattern: seq.slice(i),
+        start: i,
+        end: seq.length - 1,
+        reps: 1,
+        partial: 0,
+      });
+      break;
+    }
+  }
+
+  return segments;
+}
+
 // ===== Pure Game Logic =====
 function createEmptyGrid() {
   return Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(0));
@@ -704,6 +767,25 @@ function TinyGame() {
   // Next pieces (up to 5)
   const nextPieces = pieceSeq.slice(curIdx + 1, curIdx + 6);
 
+  // Cycle analysis (computed once per pieceSeq)
+  const cycleSegments = useMemo(() => {
+    if (pieceSeq.length === 0) return [];
+    return detectCycles(pieceSeq);
+  }, [pieceSeq]);
+
+  // Current cycle segment for curIdx
+  const currentCycle = useMemo(() => {
+    if (cycleSegments.length === 0 || curIdx >= pieceSeq.length) return null;
+    for (const seg of cycleSegments) {
+      if (curIdx >= seg.start && curIdx <= seg.end) {
+        const posInSegment = curIdx - seg.start;
+        const posInCycle = posInSegment % seg.pattern.length;
+        return { ...seg, posInCycle };
+      }
+    }
+    return null;
+  }, [cycleSegments, curIdx, pieceSeq.length]);
+
   // ===== JSX =====
   return (
     <div style={{fontFamily:'system-ui,sans-serif', maxWidth:1000, margin:'0 auto', padding:16, color:'#1e293b'}}>
@@ -792,6 +874,11 @@ function TinyGame() {
                     </div>
                   ))}
                 </div>
+                {currentCycle && (
+                  <div style={{fontSize:12, color:'#64748b', marginTop:6}}>
+                    주기 [{currentCycle.pattern.join(',')}] &middot; {currentCycle.start+1}~{currentCycle.end+1}번 &middot; 사이클 내 {currentCycle.posInCycle+1}/{currentCycle.pattern.length}
+                  </div>
+                )}
               </div>
             )}
 

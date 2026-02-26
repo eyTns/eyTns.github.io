@@ -1,0 +1,744 @@
+const { useState, useRef, useEffect, useCallback, useMemo } = React;
+
+// ===== PieceDisplay =====
+function PieceDisplay({ type, size=16, highlight=false }) {
+  const p = PIECES[type];
+  const cellSet = new Set(p.cells.map(([r,c])=>`${r},${c}`));
+  const rows = [];
+  for (let r = 0; r < p.h; r++) {
+    const cols = [];
+    for (let c = 0; c < p.w; c++) {
+      const isCell = cellSet.has(`${r},${c}`);
+      const isX = r === p.xRow && c === p.xCol;
+      cols.push(
+        <div key={c} style={{
+          width:size, height:size,
+          background: isCell ? PIECE_COLORS[type] : 'transparent',
+          border: isCell ? `1.5px solid ${PIECE_BORDERS[type]}` : 'none',
+          borderRadius: 2,
+          position:'relative',
+        }}>
+          {isCell && isX && <span style={{
+            position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+            fontSize:size*0.6, fontWeight:700, color:'#fff', lineHeight:1, textShadow:'0 0 2px rgba(0,0,0,0.4)'
+          }}>&times;</span>}
+        </div>
+      );
+    }
+    rows.push(<div key={r} style={{display:'flex', gap:1}}>{cols}</div>);
+  }
+  return (
+    <div style={{
+      display:'inline-flex', flexDirection:'column', gap:1, padding:3,
+      borderRadius:4, background: highlight ? '#e0e7ff' : 'transparent',
+      border: highlight ? '2px solid #818cf8' : '2px solid transparent',
+    }}>{rows}</div>
+  );
+}
+
+// ===== Main Component =====
+function TinyGame() {
+  const [pieceSeq, setPieceSeq] = useState([]);
+  const [totalPieces, setTotalPieces] = useState(0);
+  const [grid, setGrid] = useState(createEmptyGrid());
+  const [curIdx, setCurIdx] = useState(0);
+  const [colChoices, setColChoices] = useState([]);
+  const [linesCleared, setLinesCleared] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [gameOverReason, setGameOverReason] = useState('');
+  const [history, setHistory] = useState([]);
+  const [showPaste, setShowPaste] = useState(false);
+  const [paste, setPaste] = useState('');
+  const [hoveredCol, setHoveredCol] = useState(null);
+  const [ghostCells, setGhostCells] = useState([]);
+  const [flashRows, setFlashRows] = useState([]);
+  const [q1Pos, setQ1Pos] = useState(null); // null=not in cycle, 0-17=position within 18-step cycle
+  const [q1Running, setQ1Running] = useState(false); // auto-play running flag
+  const [customSeqs, setCustomSeqs] = useState([]); // array of number arrays, e.g. [[2,5,8],[1,3]]
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customInputVal, setCustomInputVal] = useState('');
+
+  const cvRef = useRef(null);
+  const fiRef = useRef(null);
+  const q1StopRef = useRef(false); // signal to stop auto-play
+
+  // ===== Game Actions =====
+  const startNewGame = useCallback((seq) => {
+    q1StopRef.current = true;
+    setPieceSeq(seq);
+    setTotalPieces(seq.length);
+    setGrid(createEmptyGrid());
+    setCurIdx(0);
+    setColChoices([]);
+    setLinesCleared(0);
+    setGameOver(false);
+    setGameOverReason('');
+    setHistory([]);
+    setHoveredCol(null);
+    setGhostCells([]);
+    setQ1Pos(null);
+    setQ1Running(false);
+  }, []);
+
+  const resetGame = useCallback(() => {
+    if (pieceSeq.length > 0) startNewGame([...pieceSeq]);
+  }, [pieceSeq, startNewGame]);
+
+  const pushHistory = useCallback(() => {
+    setHistory(h => {
+      const entry = { grid:grid.map(r=>[...r]), curIdx, colChoices:[...colChoices], linesCleared, gameOver, gameOverReason, q1Pos };
+      const n = [...h, entry];
+      return n.length > 500 ? n.slice(-500) : n;
+    });
+  }, [grid, curIdx, colChoices, linesCleared, gameOver, gameOverReason, q1Pos]);
+
+  const undo = useCallback(() => {
+    q1StopRef.current = true;
+    setQ1Running(false);
+    setHistory(h => {
+      if (!h.length) return h;
+      const prev = h[h.length-1];
+      setGrid(prev.grid);
+      setCurIdx(prev.curIdx);
+      setColChoices(prev.colChoices);
+      setLinesCleared(prev.linesCleared);
+      setGameOver(prev.gameOver);
+      setGameOverReason(prev.gameOverReason);
+      setQ1Pos(prev.q1Pos ?? null);
+      setHoveredCol(null);
+      setGhostCells([]);
+      return h.slice(0,-1);
+    });
+  }, []);
+
+  const handleColumnSelect = useCallback((col) => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    const pieceType = pieceSeq[curIdx];
+    pushHistory();
+    const result = executeMove(grid, pieceType, col);
+    if (!result.success) {
+      setGameOver(true);
+      setGameOverReason(result.reason);
+      return;
+    }
+    // Flash cleared rows briefly
+    if (result.cleared > 0) {
+      // Find which rows were full before clearing
+      const placed = placePiece(grid, pieceType, col, result.landRow);
+      const fullRows = [];
+      placed.forEach((row, i) => { if (row.every(c=>c!==0)) fullRows.push(i); });
+      if (fullRows.length > 0) {
+        setFlashRows(fullRows);
+        setTimeout(() => setFlashRows([]), 200);
+      }
+    }
+    setGrid(result.grid);
+    setCurIdx(curIdx + 1);
+    setColChoices([...colChoices, col]);
+    setLinesCleared(linesCleared + result.cleared);
+    setHoveredCol(null);
+    setGhostCells([]);
+  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, pushHistory]);
+
+  // ===== Input Handling =====
+  const parseInput = useCallback((txt) => {
+    try {
+      const seq = parsePieceSequence(txt);
+      startNewGame(seq);
+    } catch(e) { alert('파싱 오류: ' + e.message); }
+  }, [startNewGame]);
+
+  const handleFile = useCallback((e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const txt = ev.target.result;
+      try {
+        const obj = JSON.parse(txt);
+        if (obj._type === 'tiny_save') {
+          setGrid(obj.grid);
+          setCurIdx(obj.curIdx);
+          setColChoices(obj.colChoices);
+          setPieceSeq(obj.pieceSeq);
+          setTotalPieces(obj.totalPieces);
+          setLinesCleared(obj.linesCleared);
+          setGameOver(obj.gameOver || false);
+          setGameOverReason(obj.gameOverReason || '');
+          setHistory([]);
+          if (Array.isArray(obj.customSeqs)) setCustomSeqs(obj.customSeqs);
+          return;
+        }
+      } catch(_) {}
+      parseInput(txt);
+    };
+    reader.readAsText(f);
+    if (fiRef.current) fiRef.current.value = '';
+  }, [parseInput]);
+
+  const saveProgress = useCallback(() => {
+    const obj = { _type:'tiny_save', grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason, customSeqs };
+    downloadBlob(new Blob([JSON.stringify(obj)], {type:'application/json'}), 'tiny_progress.json');
+  }, [grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason, customSeqs]);
+
+  const runQ1Strategy1 = useCallback(() => {
+    if (q1Running) {
+      // Already running — stop it
+      q1StopRef.current = true;
+      return;
+    }
+    if (gameOver || curIdx >= pieceSeq.length) return;
+
+    // Must be in a cycle or able to start one
+    let pos = q1Pos;
+    if (pos === null) {
+      if (!isGridEmpty(grid) || !matchesPattern(pieceSeq, curIdx, Q1_PATTERN)) return;
+      pos = 0;
+    }
+
+    // Start auto-play using mutable state to avoid stale closures
+    q1StopRef.current = false;
+    setQ1Running(true);
+
+    let mGrid = grid.map(r=>[...r]);
+    let mIdx = curIdx;
+    let mCols = [...colChoices];
+    let mCleared = linesCleared;
+    let mPos = pos;
+
+    function finish(finalPos) {
+      setGrid(mGrid);
+      setCurIdx(mIdx);
+      setColChoices(mCols);
+      setLinesCleared(mCleared);
+      setQ1Pos(finalPos);
+      setHoveredCol(null);
+      setGhostCells([]);
+      setQ1Running(false);
+    }
+
+    function step() {
+      if (q1StopRef.current || mIdx >= pieceSeq.length) {
+        finish(mPos >= Q1_COLS.length ? null : mPos);
+        return;
+      }
+
+      // At cycle boundary: check if new cycle can start
+      if (mPos >= Q1_COLS.length) {
+        if (!isGridEmpty(mGrid) || !matchesPattern(pieceSeq, mIdx, Q1_PATTERN)) {
+          finish(null);
+          return;
+        }
+        mPos = 0;
+      }
+
+      const col = Q1_COLS[mPos];
+
+      // Snapshot BEFORE the move — const captures freeze values so the
+      // setHistory updater won't see the mutated mGrid/mIdx/… later.
+      const snapGrid = mGrid.map(r=>[...r]);
+      const snapIdx = mIdx;
+      const snapCols = [...mCols];
+      const snapCleared = mCleared;
+      const snapPos = mPos;
+
+      const result = executeMove(mGrid, pieceSeq[mIdx], col);
+
+      // Push history entry for undo (per-piece)
+      setHistory(h => {
+        const entry = { grid:snapGrid, curIdx:snapIdx, colChoices:snapCols, linesCleared:snapCleared, gameOver:false, gameOverReason:'', q1Pos:snapPos };
+        const n = [...h, entry];
+        return n.length > 500 ? n.slice(-500) : n;
+      });
+
+      if (!result.success) {
+        setGameOver(true);
+        setGameOverReason(result.reason);
+        finish(mPos);
+        return;
+      }
+
+      mGrid = result.grid;
+      mIdx = mIdx + 1;
+      mCols = [...mCols, col];
+      mCleared = mCleared + result.cleared;
+      mPos = mPos + 1;
+
+      // Update visible state for animation
+      setGrid(mGrid.map(r=>[...r]));
+      setCurIdx(mIdx);
+      setColChoices([...mCols]);
+      setLinesCleared(mCleared);
+      setQ1Pos(mPos >= Q1_COLS.length ? null : mPos);
+
+      // Schedule next step
+      setTimeout(step, 10);
+    }
+
+    step();
+  }, [q1Running, gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
+
+  const runSeqBatch = useCallback((seq, stopRef) => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    stopRef.current = false;
+
+    let mGrid = grid.map(r=>[...r]);
+    let mIdx = curIdx;
+    let mCols = [...colChoices];
+    let mCleared = linesCleared;
+    let si = 0;
+
+    function finish() {
+      setGrid(mGrid);
+      setCurIdx(mIdx);
+      setColChoices(mCols);
+      setLinesCleared(mCleared);
+      setHoveredCol(null);
+      setGhostCells([]);
+    }
+
+    function step() {
+      if (stopRef.current || si >= seq.length || mIdx >= pieceSeq.length) { finish(); return; }
+      const col = seq[si];
+      const snapGrid = mGrid.map(r=>[...r]);
+      const snapIdx = mIdx;
+      const snapCols = [...mCols];
+      const snapCleared = mCleared;
+
+      const result = executeMove(mGrid, pieceSeq[mIdx], col);
+
+      setHistory(h => {
+        const entry = { grid:snapGrid, curIdx:snapIdx, colChoices:snapCols, linesCleared:snapCleared, gameOver:false, gameOverReason:'', q1Pos };
+        const n = [...h, entry];
+        return n.length > 500 ? n.slice(-500) : n;
+      });
+
+      if (!result.success) {
+        setGameOver(true);
+        setGameOverReason(result.reason);
+        finish();
+        return;
+      }
+
+      mGrid = result.grid;
+      mIdx += 1;
+      mCols = [...mCols, col];
+      mCleared += result.cleared;
+      si += 1;
+
+      setGrid(mGrid.map(r=>[...r]));
+      setCurIdx(mIdx);
+      setColChoices([...mCols]);
+      setLinesCleared(mCleared);
+
+      setTimeout(step, 10);
+    }
+
+    step();
+  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
+
+  const seq147StopRef = useRef(false);
+  const seqQ1StopRef = useRef(false);
+  const customStopRef = useRef(false);
+
+  const handleSeq147 = useCallback(() => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    runSeqBatch(SEQ_147, seq147StopRef);
+  }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
+
+  const handleSeqQ1 = useCallback(() => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    runSeqBatch(Q1_COLS, seqQ1StopRef);
+  }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
+
+  const handleCustomSeq = useCallback((seq) => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    runSeqBatch(seq, customStopRef);
+  }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
+
+  const addCustomSeq = useCallback((input) => {
+    const digits = input.replace(/[^1-9]/g, '');
+    if (digits.length === 0) return;
+    const seq = digits.split('').map(Number);
+    setCustomSeqs(prev => [...prev, seq]);
+    setCustomInputVal('');
+    setShowCustomInput(false);
+  }, []);
+
+  const exportResult = useCallback(() => {
+    const output = colChoices.join('\n') + '\n';
+    downloadBlob(new Blob([output], {type:'text/plain'}), 'tiny_output.txt');
+  }, [colChoices]);
+
+  // ===== Ghost Piece Calculation =====
+  const computeGhost = useCallback((col0) => {
+    if (curIdx >= pieceSeq.length || gameOver) return [];
+    const col = col0 + 1;
+    const pieceType = pieceSeq[curIdx];
+    if (!isValidColumn(pieceType, col)) return [];
+    const landRow = findLandingRow(grid, pieceType, col);
+    if (landRow < 0) return [];
+    const p = PIECES[pieceType];
+    const cOff = col - 1 - p.xCol;
+    return p.cells.map(([dr, dc]) => [landRow + dr, cOff + dc]);
+  }, [curIdx, pieceSeq, grid, gameOver]);
+
+  // ===== Canvas Rendering =====
+  const drawGrid = useCallback(() => {
+    const cv = cvRef.current;
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const totalW = GRID_PX;
+    const totalH = GRID_PX + 24; // extra space for column numbers
+    cv.width = totalW * dpr;
+    cv.height = totalH * dpr;
+    cv.style.width = totalW + 'px';
+    cv.style.height = totalH + 'px';
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, totalW, totalH);
+
+    const flashSet = new Set(flashRows);
+    const ghostSet = new Set(ghostCells.map(([r,c])=>`${r},${c}`));
+
+    // Draw cells
+    for (let r = 0; r < GRID_H; r++) {
+      for (let c = 0; c < GRID_W; c++) {
+        const x = c * CS, y = r * CS;
+        const val = grid[r][c];
+
+        // Flash effect for cleared rows
+        if (flashSet.has(r)) {
+          ctx.fillStyle = '#fef08a';
+          ctx.fillRect(x, y, CS, CS);
+        } else {
+          ctx.fillStyle = PIECE_COLORS[val];
+          ctx.fillRect(x, y, CS, CS);
+        }
+
+        // Border
+        ctx.strokeStyle = val === 0 ? '#e2e8f0' : PIECE_BORDERS[val];
+        ctx.lineWidth = val === 0 ? 0.5 : 1.5;
+        ctx.strokeRect(x + 0.5, y + 0.5, CS - 1, CS - 1);
+
+        // Piece number in occupied cells
+        if (val !== 0 && !flashSet.has(r)) {
+          ctx.fillStyle = '#ffffffcc';
+          ctx.font = `bold ${Math.round(CS * 0.35)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(val), x + CS/2, y + CS/2);
+        }
+      }
+    }
+
+    // Draw ghost piece
+    if (ghostCells.length > 0 && curIdx < pieceSeq.length) {
+      const pt = pieceSeq[curIdx];
+      ctx.globalAlpha = 0.35;
+      for (const [r, c] of ghostCells) {
+        if (r >= 0 && r < GRID_H && c >= 0 && c < GRID_W) {
+          ctx.fillStyle = PIECE_COLORS[pt];
+          ctx.fillRect(c * CS + 2, r * CS + 2, CS - 4, CS - 4);
+          ctx.strokeStyle = PIECE_BORDERS[pt];
+          ctx.lineWidth = 2;
+          ctx.strokeRect(c * CS + 2, r * CS + 2, CS - 4, CS - 4);
+        }
+      }
+      ctx.globalAlpha = 1.0;
+    }
+
+    // Column highlight
+    if (hoveredCol !== null) {
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.06)';
+      ctx.fillRect(hoveredCol * CS, 0, CS, GRID_PX);
+    }
+
+    // Grid outer border
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, GRID_PX, GRID_PX);
+
+    // Column numbers
+    ctx.fillStyle = '#64748b';
+    ctx.font = `bold ${Math.round(CS * 0.32)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let c = 0; c < GRID_W; c++) {
+      const isHovered = hoveredCol === c;
+      ctx.fillStyle = isHovered ? '#4f46e5' : '#64748b';
+      ctx.fillText(String(c + 1), c * CS + CS/2, GRID_PX + 5);
+    }
+  }, [grid, ghostCells, hoveredCol, flashRows, curIdx, pieceSeq]);
+
+  useEffect(() => { drawGrid(); }, [drawGrid]);
+
+  // ===== Mouse Events on Canvas =====
+  const getCol = useCallback((e) => {
+    const cv = cvRef.current;
+    if (!cv) return -1;
+    const rect = cv.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    return Math.floor(x / CS);
+  }, []);
+
+  const onCanvasClick = useCallback((e) => {
+    if (curIdx >= pieceSeq.length || gameOver) return;
+    const col0 = getCol(e);
+    if (col0 >= 0 && col0 < GRID_W) {
+      handleColumnSelect(col0 + 1);
+    }
+  }, [curIdx, pieceSeq, gameOver, getCol, handleColumnSelect]);
+
+  const onCanvasMouseMove = useCallback((e) => {
+    if (curIdx >= pieceSeq.length || gameOver) { setHoveredCol(null); setGhostCells([]); return; }
+    const col0 = getCol(e);
+    if (col0 >= 0 && col0 < GRID_W) {
+      setHoveredCol(col0);
+      setGhostCells(computeGhost(col0));
+    } else {
+      setHoveredCol(null);
+      setGhostCells([]);
+    }
+  }, [curIdx, pieceSeq, gameOver, getCol, computeGhost]);
+
+  const onCanvasLeave = useCallback(() => {
+    setHoveredCol(null);
+    setGhostCells([]);
+  }, []);
+
+  // ===== Keyboard Events =====
+  useEffect(() => {
+    const fn = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 9 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleColumnSelect(num);
+      }
+    };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, [undo, handleColumnSelect]);
+
+  // ===== Derived State =====
+  const currentPiece = curIdx < pieceSeq.length ? pieceSeq[curIdx] : null;
+  const isComplete = pieceSeq.length > 0 && curIdx >= pieceSeq.length && !gameOver;
+  const validCols = currentPiece ? getValidColumns(currentPiece) : [];
+
+  const canQ1S1 = q1Running || (pieceSeq.length > 0 && !gameOver && !isComplete && (
+    q1Pos !== null ||
+    (isGridEmpty(grid) && matchesPattern(pieceSeq, curIdx, Q1_PATTERN))
+  ));
+
+  // Next pieces (up to 5)
+  const nextPieces = pieceSeq.slice(curIdx + 1, curIdx + 6);
+
+  // Cycle analysis from curIdx to end
+  const currentCycle = useMemo(() => {
+    if (pieceSeq.length === 0 || curIdx >= pieceSeq.length) return null;
+    const sub = pieceSeq.slice(curIdx);
+    const segments = detectCycles(sub);
+    if (segments.length === 0) return null;
+    const seg = segments[0];
+    return {
+      pattern: seg.pattern,
+      start: curIdx + seg.start,
+      end: curIdx + seg.end,
+      reps: seg.reps,
+      partial: seg.partial,
+      posInCycle: 0, // curIdx is always at position 0 of the first detected cycle
+    };
+  }, [pieceSeq, curIdx]);
+
+  // ===== JSX =====
+  return (
+    <div style={{fontFamily:'system-ui,sans-serif', maxWidth:1000, margin:'0 auto', padding:16, color:'#1e293b'}}>
+      {/* Header */}
+      <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:4}}>
+        <span style={{fontSize:26}}>&#x1F9E9;</span>
+        <div>
+          <h2 style={{margin:0, fontSize:19}}>Tiny Interactive</h2>
+          <p style={{margin:0, fontSize:12, color:'#94a3b8'}}>
+            1-9 키: 열 선택 &middot; Ctrl+Z: 되돌리기 &middot; 클릭으로 열 선택
+          </p>
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', margin:'10px 0'}}>
+        <input ref={fiRef} type="file" accept=".in,.txt,.json,*/*" onChange={handleFile} style={{display:'none'}} />
+        <label onClick={()=>fiRef.current?.click()} style={{...BTN, display:'inline-block'}}>&#x1F4C2; 열기</label>
+        <button onClick={()=>setShowPaste(!showPaste)} style={BTN}>&#x1F4CB; 텍스트</button>
+        {EXAMPLES.map((ex,i) => (
+          <button key={i} onClick={()=>parseInput(ex.data)} style={BTN}>&#x1F4DD; {ex.name}</button>
+        ))}
+        {pieceSeq.length > 0 && <button onClick={undo} disabled={!history.length} style={{...BTN, opacity:history.length?1:.4}}>&#x21A9; 되돌리기</button>}
+        {pieceSeq.length > 0 && <button onClick={resetGame} style={BTN}>&#x1F504; 초기화</button>}
+        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background: q1Running ? '#fecaca' : '#fef3c7', borderColor: q1Running ? '#ef4444' : '#fbbf24', fontWeight:600}}>{q1Running ? 'Q1 전략1 중지' : 'Q1 전략1'}</button>}
+        {pieceSeq.length > 0 && <button onClick={saveProgress} style={BTN}>&#x1F4E5; 진행 저장</button>}
+        {pieceSeq.length > 0 && <button onClick={exportResult} style={{...BTN, background: isComplete?'#059669':'#3b82f6', color:'#fff', borderColor: isComplete?'#059669':'#3b82f6'}}>&#x1F4BE; 결과 내보내기</button>}
+      </div>
+
+      {/* Paste area */}
+      {showPaste && (
+        <div style={{marginBottom:12}}>
+          <textarea value={paste} onChange={e=>setPaste(e.target.value)}
+            placeholder={'예:\n20\n5\n4\n1\n6\n7\n...'}
+            rows={6} style={{width:'100%', boxSizing:'border-box', fontFamily:'monospace', fontSize:13, padding:8, borderRadius:6, border:'1px solid #cbd5e1', resize:'vertical'}} />
+          <button onClick={()=>{parseInput(paste);setShowPaste(false);}} style={{...BTN, marginTop:4}}>적용</button>
+        </div>
+      )}
+
+      {/* Stats bar */}
+      {pieceSeq.length > 0 && (
+        <div style={{display:'flex', gap:16, alignItems:'center', marginBottom:8, fontSize:14, flexWrap:'wrap'}}>
+          <span>&#x1F9E9; <b>{curIdx}</b>/{totalPieces}</span>
+          <span>&#x1F4CF; <b>{linesCleared}</b>줄 클리어</span>
+          {gameOver
+            ? <span style={{color:'#dc2626', fontWeight:600}}>&#x274C; 게임 오버: {gameOverReason}</span>
+            : isComplete
+              ? <span style={{color:'#059669', fontWeight:600}}>&#x2705; 완료!</span>
+              : <span style={{color:'#64748b'}}>&#x23F3; 진행 중</span>}
+        </div>
+      )}
+
+      {/* Complete banner */}
+      {isComplete && (
+        <div style={{background:'#d1fae5', border:'1px solid #6ee7b7', borderRadius:8, padding:'10px 14px', marginBottom:10, fontSize:14}}>
+          &#x1F389; 모든 조각 배치 완료! <b>"결과 내보내기"</b>로 저장하세요.
+        </div>
+      )}
+
+      {/* Main game area */}
+      {pieceSeq.length > 0 ? (
+        <div style={{display:'flex', gap:24, flexWrap:'wrap', alignItems:'flex-start'}}>
+          {/* Left: Canvas */}
+          <div>
+            <canvas ref={cvRef}
+              onClick={onCanvasClick}
+              onMouseMove={onCanvasMouseMove}
+              onMouseLeave={onCanvasLeave}
+              style={{cursor: (gameOver || isComplete) ? 'default' : 'pointer', display:'block', borderRadius:8}} />
+          </div>
+
+          {/* Right: Side panel */}
+          <div style={{flex:1, minWidth:200, display:'flex', flexDirection:'column', gap:12}}>
+            {/* Pieces: current (highlighted) + next */}
+            {currentPiece && !gameOver && (
+              <div style={{padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
+                <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>다음 조각 (#{curIdx+1})</div>
+                <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                  <PieceDisplay type={currentPiece} size={24} highlight />
+                  <span style={{fontSize:24, fontWeight:700, color:PIECE_BORDERS[currentPiece]}}>{currentPiece}</span>
+                  {nextPieces.length > 0 && <span style={{color:'#e2e8f0', margin:'0 2px', fontSize:20}}>|</span>}
+                  {nextPieces.map((pt, i) => (
+                    <div key={i} style={{textAlign:'center'}}>
+                      <PieceDisplay type={pt} size={14} />
+                      <div style={{fontSize:11, color:'#64748b', marginTop:2}}>{pt}</div>
+                    </div>
+                  ))}
+                </div>
+                {currentCycle && (
+                  <div style={{fontSize:12, color:'#64748b', marginTop:6}}>
+                    주기 [{currentCycle.pattern.join(',')}] &middot; {currentCycle.start+1}~{currentCycle.end+1}번 &middot; 사이클 내 {currentCycle.posInCycle+1}/{currentCycle.pattern.length}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Column buttons + sequence shortcuts */}
+            {currentPiece && !gameOver && (
+              <div style={{padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
+                <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>열 선택</div>
+                <div style={{display:'flex', gap:4, flexWrap:'wrap'}}>
+                  {Array.from({length:9}, (_,i) => i+1).map(c => {
+                    const valid = validCols.includes(c);
+                    const canLand = valid && findLandingRow(grid, currentPiece, c) >= 0;
+                    return (
+                      <button key={c} onClick={() => handleColumnSelect(c)}
+                        disabled={!valid}
+                        style={{
+                          ...BTN, width:36, height:36, padding:0, textAlign:'center',
+                          fontWeight:700, fontSize:15,
+                          background: !valid ? '#f1f5f9' : canLand ? '#dbeafe' : '#fee2e2',
+                          color: !valid ? '#cbd5e1' : canLand ? '#1e40af' : '#991b1b',
+                          borderColor: !valid ? '#e2e8f0' : canLand ? '#93c5fd' : '#fca5a5',
+                          cursor: valid ? 'pointer' : 'not-allowed',
+                        }}>{c}</button>
+                    );
+                  })}
+                </div>
+                <div style={{display:'flex', gap:4, marginTop:8, flexWrap:'wrap', alignItems:'center'}}>
+                  <button onClick={handleSeq147} style={{...BTN, fontSize:12, fontWeight:600}}>147</button>
+                  <button onClick={handleSeqQ1} style={{...BTN, fontSize:12, fontWeight:600}}>{Q1_COLS.join('')}</button>
+                  {customSeqs.map((seq, i) => (
+                    <button key={i} onClick={() => handleCustomSeq(seq)} style={{...BTN, fontSize:12, fontWeight:600}}>{seq.join('')}</button>
+                  ))}
+                  {showCustomInput ? (
+                    <span style={{display:'inline-flex', alignItems:'center', gap:2}}>
+                      <input
+                        autoFocus
+                        value={customInputVal}
+                        onChange={e => setCustomInputVal(e.target.value.replace(/[^1-9]/g, ''))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { e.stopPropagation(); addCustomSeq(customInputVal); }
+                          if (e.key === 'Escape') { setShowCustomInput(false); setCustomInputVal(''); }
+                          e.stopPropagation();
+                        }}
+                        placeholder="숫자열"
+                        style={{width:80, fontSize:12, padding:'4px 6px', borderRadius:4, border:'1px solid #93c5fd', fontFamily:'monospace', outline:'none'}}
+                      />
+                      <button onClick={() => addCustomSeq(customInputVal)} style={{...BTN, fontSize:12, padding:'4px 8px'}}>&#x2714;</button>
+                      <button onClick={() => { setShowCustomInput(false); setCustomInputVal(''); }} style={{...BTN, fontSize:12, padding:'4px 8px'}}>&#x2716;</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setShowCustomInput(true)} style={{...BTN, fontSize:14, fontWeight:700, padding:'4px 10px'}}>+</button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Column choices history */}
+            {colChoices.length > 0 && (
+              <div style={{padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
+                <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>선택 기록</div>
+                <div style={{fontSize:12, fontFamily:'monospace', color:'#475569', maxHeight:120, overflowY:'auto', lineHeight:1.6, wordBreak:'break-all'}}>
+                  {colChoices.map((c, i) => (
+                    <span key={i}>
+                      <span style={{color:'#94a3b8', fontSize:10}}>#{i+1}:</span>
+                      <span style={{color:PIECE_BORDERS[pieceSeq[i]], fontWeight:600}}>{c}</span>
+                      {i < colChoices.length-1 ? ' ' : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={{textAlign:'center', padding:'60px 20px', color:'#94a3b8', background:'#f8fafc', borderRadius:12, border:'2px dashed #e2e8f0'}}>
+          <p style={{fontSize:52, margin:'0 0 8px'}}>&#x1F9E9;</p>
+          <p style={{margin:0, fontSize:15}}>파일을 열거나 예제를 로드하여 시작하세요</p>
+        </div>
+      )}
+
+      {/* Piece reference chart */}
+      <div style={{marginTop:16, padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
+        <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>조각 참조</div>
+        <div style={{display:'flex', gap:16, flexWrap:'wrap', alignItems:'flex-end'}}>
+          {[1,2,3,4,5,6,7,8,9].map(t => (
+            <div key={t} style={{textAlign:'center'}}>
+              <div style={{fontSize:12, fontWeight:700, color:PIECE_BORDERS[t], marginBottom:4}}>{t}</div>
+              <PieceDisplay type={t} size={16} highlight={currentPiece === t} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer nav */}
+      <div style={{marginTop:20, fontSize:14}}>
+        <a href="../" style={{color:'#6366f1'}}>&#x2190; 인덱스</a>
+      </div>
+    </div>
+  );
+}

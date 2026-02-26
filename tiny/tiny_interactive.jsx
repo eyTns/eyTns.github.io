@@ -46,6 +46,7 @@ const EXAMPLES = [
 // ===== Strategies =====
 const Q1_PATTERN = [5,3,5,3,5,3,5,3,5,3,5,3,5,3,5,3,5,3];
 const Q1_COLS    = [1,4,1,6,1,8,4,4,7,6,1,8,4,4,7,6,1,8];
+const SEQ_147    = [1, 4, 7];
 
 function isGridEmpty(grid) {
   for (let r = 0; r < GRID_H; r++)
@@ -224,6 +225,8 @@ function TinyGame() {
   const [flashRows, setFlashRows] = useState([]);
   const [q1Pos, setQ1Pos] = useState(null); // null=not in cycle, 0-17=position within 18-step cycle
   const [q1Running, setQ1Running] = useState(false); // auto-play running flag
+  const [seqPos147, setSeqPos147] = useState(0);
+  const [seqPosQ1, setSeqPosQ1] = useState(0);
 
   const cvRef = useRef(null);
   const fiRef = useRef(null);
@@ -245,6 +248,8 @@ function TinyGame() {
     setGhostCells([]);
     setQ1Pos(null);
     setQ1Running(false);
+    setSeqPos147(0);
+    setSeqPosQ1(0);
   }, []);
 
   const resetGame = useCallback(() => {
@@ -442,6 +447,20 @@ function TinyGame() {
 
     step();
   }, [q1Running, gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
+
+  const handleSeq147 = useCallback(() => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    const col = SEQ_147[seqPos147 % SEQ_147.length];
+    handleColumnSelect(col);
+    setSeqPos147(p => (p + 1) % SEQ_147.length);
+  }, [gameOver, curIdx, pieceSeq, seqPos147, handleColumnSelect]);
+
+  const handleSeqQ1 = useCallback(() => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    const col = Q1_COLS[seqPosQ1 % Q1_COLS.length];
+    handleColumnSelect(col);
+    setSeqPosQ1(p => (p + 1) % Q1_COLS.length);
+  }, [gameOver, curIdx, pieceSeq, seqPosQ1, handleColumnSelect]);
 
   const exportResult = useCallback(() => {
     const output = colChoices.join('\n') + '\n';
@@ -685,18 +704,25 @@ function TinyGame() {
 
           {/* Right: Side panel */}
           <div style={{flex:1, minWidth:200, display:'flex', flexDirection:'column', gap:12}}>
-            {/* Current piece */}
+            {/* Pieces: current (highlighted) + next */}
             {currentPiece && !gameOver && (
               <div style={{padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
-                <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>현재 조각 (#{curIdx+1})</div>
-                <div style={{display:'flex', alignItems:'center', gap:12}}>
+                <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>다음 조각 (#{curIdx+1})</div>
+                <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
                   <PieceDisplay type={currentPiece} size={24} highlight />
                   <span style={{fontSize:24, fontWeight:700, color:PIECE_BORDERS[currentPiece]}}>{currentPiece}</span>
+                  {nextPieces.length > 0 && <span style={{color:'#e2e8f0', margin:'0 2px', fontSize:20}}>|</span>}
+                  {nextPieces.map((pt, i) => (
+                    <div key={i} style={{textAlign:'center'}}>
+                      <PieceDisplay type={pt} size={14} />
+                      <div style={{fontSize:11, color:'#64748b', marginTop:2}}>{pt}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Column buttons */}
+            {/* Column buttons + sequence shortcuts */}
             {currentPiece && !gameOver && (
               <div style={{padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
                 <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>열 선택</div>
@@ -718,20 +744,9 @@ function TinyGame() {
                     );
                   })}
                 </div>
-              </div>
-            )}
-
-            {/* Next pieces */}
-            {nextPieces.length > 0 && (
-              <div style={{padding:12, background:'#f8fafc', borderRadius:8, border:'1px solid #e2e8f0'}}>
-                <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>다음 조각</div>
-                <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-                  {nextPieces.map((pt, i) => (
-                    <div key={i} style={{textAlign:'center'}}>
-                      <PieceDisplay type={pt} size={14} />
-                      <div style={{fontSize:11, color:'#64748b', marginTop:2}}>{pt}</div>
-                    </div>
-                  ))}
+                <div style={{display:'flex', gap:4, marginTop:8}}>
+                  <button onClick={handleSeq147} style={{...BTN, fontSize:12, fontWeight:600}}>147</button>
+                  <button onClick={handleSeqQ1} style={{...BTN, fontSize:12, fontWeight:600}}>{Q1_COLS.join('').slice(0,8)}&hellip;</button>
                 </div>
               </div>
             )}

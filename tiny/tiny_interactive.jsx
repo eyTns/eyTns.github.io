@@ -449,17 +449,15 @@ function TinyGame() {
   }, [q1Running, gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
 
   const handleSeq147 = useCallback(() => {
-    if (gameOver || curIdx >= pieceSeq.length) return;
-    const col = SEQ_147[seqPos147 % SEQ_147.length];
-    handleColumnSelect(col);
-    setSeqPos147(p => (p + 1) % SEQ_147.length);
+    if (gameOver || curIdx >= pieceSeq.length || seqPos147 >= SEQ_147.length) return;
+    handleColumnSelect(SEQ_147[seqPos147]);
+    setSeqPos147(p => p + 1);
   }, [gameOver, curIdx, pieceSeq, seqPos147, handleColumnSelect]);
 
   const handleSeqQ1 = useCallback(() => {
-    if (gameOver || curIdx >= pieceSeq.length) return;
-    const col = Q1_COLS[seqPosQ1 % Q1_COLS.length];
-    handleColumnSelect(col);
-    setSeqPosQ1(p => (p + 1) % Q1_COLS.length);
+    if (gameOver || curIdx >= pieceSeq.length || seqPosQ1 >= Q1_COLS.length) return;
+    handleColumnSelect(Q1_COLS[seqPosQ1]);
+    setSeqPosQ1(p => p + 1);
   }, [gameOver, curIdx, pieceSeq, seqPosQ1, handleColumnSelect]);
 
   const exportResult = useCallback(() => {
@@ -745,8 +743,8 @@ function TinyGame() {
                   })}
                 </div>
                 <div style={{display:'flex', gap:4, marginTop:8}}>
-                  <button onClick={handleSeq147} style={{...BTN, fontSize:12, fontWeight:600}}>147</button>
-                  <button onClick={handleSeqQ1} style={{...BTN, fontSize:12, fontWeight:600}}>{Q1_COLS.join('').slice(0,8)}&hellip;</button>
+                  <button onClick={handleSeq147} disabled={seqPos147 >= SEQ_147.length} style={{...BTN, fontSize:12, fontWeight:600, opacity: seqPos147 >= SEQ_147.length ? .4 : 1}}>147{seqPos147 > 0 && seqPos147 < SEQ_147.length ? ` (${seqPos147}/${SEQ_147.length})` : ''}</button>
+                  <button onClick={handleSeqQ1} disabled={seqPosQ1 >= Q1_COLS.length} style={{...BTN, fontSize:12, fontWeight:600, opacity: seqPosQ1 >= Q1_COLS.length ? .4 : 1}}>{Q1_COLS.join('')}{seqPosQ1 > 0 && seqPosQ1 < Q1_COLS.length ? ` (${seqPosQ1}/${Q1_COLS.length})` : ''}</button>
                 </div>
               </div>
             )}

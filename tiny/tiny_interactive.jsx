@@ -767,24 +767,22 @@ function TinyGame() {
   // Next pieces (up to 5)
   const nextPieces = pieceSeq.slice(curIdx + 1, curIdx + 6);
 
-  // Cycle analysis (computed once per pieceSeq)
-  const cycleSegments = useMemo(() => {
-    if (pieceSeq.length === 0) return [];
-    return detectCycles(pieceSeq);
-  }, [pieceSeq]);
-
-  // Current cycle segment for curIdx
+  // Cycle analysis from curIdx to end
   const currentCycle = useMemo(() => {
-    if (cycleSegments.length === 0 || curIdx >= pieceSeq.length) return null;
-    for (const seg of cycleSegments) {
-      if (curIdx >= seg.start && curIdx <= seg.end) {
-        const posInSegment = curIdx - seg.start;
-        const posInCycle = posInSegment % seg.pattern.length;
-        return { ...seg, posInCycle };
-      }
-    }
-    return null;
-  }, [cycleSegments, curIdx, pieceSeq.length]);
+    if (pieceSeq.length === 0 || curIdx >= pieceSeq.length) return null;
+    const sub = pieceSeq.slice(curIdx);
+    const segments = detectCycles(sub);
+    if (segments.length === 0) return null;
+    const seg = segments[0];
+    return {
+      pattern: seg.pattern,
+      start: curIdx + seg.start,
+      end: curIdx + seg.end,
+      reps: seg.reps,
+      partial: seg.partial,
+      posInCycle: 0, // curIdx is always at position 0 of the first detected cycle
+    };
+  }, [pieceSeq, curIdx]);
 
   // ===== JSX =====
   return (

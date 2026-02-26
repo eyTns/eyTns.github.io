@@ -225,8 +225,6 @@ function TinyGame() {
   const [flashRows, setFlashRows] = useState([]);
   const [q1Pos, setQ1Pos] = useState(null); // null=not in cycle, 0-17=position within 18-step cycle
   const [q1Running, setQ1Running] = useState(false); // auto-play running flag
-  const [seqPos147, setSeqPos147] = useState(0);
-  const [seqPosQ1, setSeqPosQ1] = useState(0);
 
   const cvRef = useRef(null);
   const fiRef = useRef(null);
@@ -248,8 +246,6 @@ function TinyGame() {
     setGhostCells([]);
     setQ1Pos(null);
     setQ1Running(false);
-    setSeqPos147(0);
-    setSeqPosQ1(0);
   }, []);
 
   const resetGame = useCallback(() => {
@@ -448,17 +444,77 @@ function TinyGame() {
     step();
   }, [q1Running, gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
 
+  const runSeqBatch = useCallback((seq, stopRef) => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    stopRef.current = false;
+
+    let mGrid = grid.map(r=>[...r]);
+    let mIdx = curIdx;
+    let mCols = [...colChoices];
+    let mCleared = linesCleared;
+    let si = 0;
+
+    function finish() {
+      setGrid(mGrid);
+      setCurIdx(mIdx);
+      setColChoices(mCols);
+      setLinesCleared(mCleared);
+      setHoveredCol(null);
+      setGhostCells([]);
+    }
+
+    function step() {
+      if (stopRef.current || si >= seq.length || mIdx >= pieceSeq.length) { finish(); return; }
+      const col = seq[si];
+      const snapGrid = mGrid.map(r=>[...r]);
+      const snapIdx = mIdx;
+      const snapCols = [...mCols];
+      const snapCleared = mCleared;
+
+      const result = executeMove(mGrid, pieceSeq[mIdx], col);
+
+      setHistory(h => {
+        const entry = { grid:snapGrid, curIdx:snapIdx, colChoices:snapCols, linesCleared:snapCleared, gameOver:false, gameOverReason:'', q1Pos };
+        const n = [...h, entry];
+        return n.length > 500 ? n.slice(-500) : n;
+      });
+
+      if (!result.success) {
+        setGameOver(true);
+        setGameOverReason(result.reason);
+        finish();
+        return;
+      }
+
+      mGrid = result.grid;
+      mIdx += 1;
+      mCols = [...mCols, col];
+      mCleared += result.cleared;
+      si += 1;
+
+      setGrid(mGrid.map(r=>[...r]));
+      setCurIdx(mIdx);
+      setColChoices([...mCols]);
+      setLinesCleared(mCleared);
+
+      setTimeout(step, 10);
+    }
+
+    step();
+  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
+
+  const seq147StopRef = useRef(false);
+  const seqQ1StopRef = useRef(false);
+
   const handleSeq147 = useCallback(() => {
-    if (gameOver || curIdx >= pieceSeq.length || seqPos147 >= SEQ_147.length) return;
-    handleColumnSelect(SEQ_147[seqPos147]);
-    setSeqPos147(p => p + 1);
-  }, [gameOver, curIdx, pieceSeq, seqPos147, handleColumnSelect]);
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    runSeqBatch(SEQ_147, seq147StopRef);
+  }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
 
   const handleSeqQ1 = useCallback(() => {
-    if (gameOver || curIdx >= pieceSeq.length || seqPosQ1 >= Q1_COLS.length) return;
-    handleColumnSelect(Q1_COLS[seqPosQ1]);
-    setSeqPosQ1(p => p + 1);
-  }, [gameOver, curIdx, pieceSeq, seqPosQ1, handleColumnSelect]);
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    runSeqBatch(Q1_COLS, seqQ1StopRef);
+  }, [gameOver, curIdx, pieceSeq, runSeqBatch]);
 
   const exportResult = useCallback(() => {
     const output = colChoices.join('\n') + '\n';
@@ -653,7 +709,7 @@ function TinyGame() {
         ))}
         {pieceSeq.length > 0 && <button onClick={undo} disabled={!history.length} style={{...BTN, opacity:history.length?1:.4}}>&#x21A9; 되돌리기</button>}
         {pieceSeq.length > 0 && <button onClick={resetGame} style={BTN}>&#x1F504; 초기화</button>}
-        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background: q1Running ? '#fecaca' : '#fef3c7', borderColor: q1Running ? '#ef4444' : '#fbbf24', fontWeight:600}}>{q1Running ? 'Q1 전략1 중지' : 'Q1 전략1'}{q1Pos !== null && !q1Running ? ` (${q1Pos}/${Q1_COLS.length})` : ''}</button>}
+        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background: q1Running ? '#fecaca' : '#fef3c7', borderColor: q1Running ? '#ef4444' : '#fbbf24', fontWeight:600}}>{q1Running ? 'Q1 전략1 중지' : 'Q1 전략1'}</button>}
         {pieceSeq.length > 0 && <button onClick={saveProgress} style={BTN}>&#x1F4E5; 진행 저장</button>}
         {pieceSeq.length > 0 && <button onClick={exportResult} style={{...BTN, background: isComplete?'#059669':'#3b82f6', color:'#fff', borderColor: isComplete?'#059669':'#3b82f6'}}>&#x1F4BE; 결과 내보내기</button>}
       </div>
@@ -743,8 +799,8 @@ function TinyGame() {
                   })}
                 </div>
                 <div style={{display:'flex', gap:4, marginTop:8}}>
-                  <button onClick={handleSeq147} disabled={seqPos147 >= SEQ_147.length} style={{...BTN, fontSize:12, fontWeight:600, opacity: seqPos147 >= SEQ_147.length ? .4 : 1}}>147{seqPos147 > 0 && seqPos147 < SEQ_147.length ? ` (${seqPos147}/${SEQ_147.length})` : ''}</button>
-                  <button onClick={handleSeqQ1} disabled={seqPosQ1 >= Q1_COLS.length} style={{...BTN, fontSize:12, fontWeight:600, opacity: seqPosQ1 >= Q1_COLS.length ? .4 : 1}}>{Q1_COLS.join('')}{seqPosQ1 > 0 && seqPosQ1 < Q1_COLS.length ? ` (${seqPosQ1}/${Q1_COLS.length})` : ''}</button>
+                  <button onClick={handleSeq147} style={{...BTN, fontSize:12, fontWeight:600}}>147</button>
+                  <button onClick={handleSeqQ1} style={{...BTN, fontSize:12, fontWeight:600}}>{Q1_COLS.join('')}</button>
                 </div>
               </div>
             )}

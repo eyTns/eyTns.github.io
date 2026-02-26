@@ -1,7 +1,7 @@
 const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
 // ===== Constants =====
-const CS = 48;
+const CS = 35;
 const GRID_W = 9;
 const GRID_H = 9;
 const GRID_PX = GRID_W * CS;

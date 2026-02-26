@@ -43,6 +43,44 @@ const EXAMPLES = [
   { name:'Line Clear', data:'12\n5\n5\n5\n3\n3\n3\n3\n1\n5\n5\n5\n1' },
 ];
 
+// ===== Strategies =====
+const Q1_PATTERN = [5,3,5,3,5,3,5,3,5,3,5,3,5,3,5,3,5,3];
+const Q1_COLS    = [1,4,1,6,1,8,4,4,7,6,1,8,4,4,7,6,1,8];
+
+function isGridEmpty(grid) {
+  for (let r = 0; r < GRID_H; r++)
+    for (let c = 0; c < GRID_W; c++)
+      if (grid[r][c] !== 0) return false;
+  return true;
+}
+
+function matchesPattern(seq, startIdx, pattern) {
+  if (startIdx + pattern.length > seq.length) return false;
+  for (let i = 0; i < pattern.length; i++)
+    if (seq[startIdx + i] !== pattern[i]) return false;
+  return true;
+}
+
+function applyStrategy(grid, seq, startIdx, pattern, cols) {
+  let g = grid;
+  let idx = startIdx;
+  let choices = [];
+  let lines = 0;
+  let rounds = 0;
+  while (isGridEmpty(g) && matchesPattern(seq, idx, pattern)) {
+    for (let i = 0; i < pattern.length; i++) {
+      const result = executeMove(g, pattern[i], cols[i]);
+      if (!result.success) return { g, idx, choices, lines, rounds, error: result.reason };
+      g = result.grid;
+      lines += result.cleared;
+      choices.push(cols[i]);
+    }
+    idx += pattern.length;
+    rounds++;
+  }
+  return { g, idx, choices, lines, rounds, error: null };
+}
+
 // ===== Pure Game Logic =====
 function createEmptyGrid() {
   return Array.from({length:GRID_H}, ()=>Array(GRID_W).fill(0));
@@ -319,6 +357,25 @@ function TinyGame() {
     downloadBlob(new Blob([JSON.stringify(obj)], {type:'application/json'}), 'tiny_progress.json');
   }, [grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason]);
 
+  const runQ1Strategy1 = useCallback(() => {
+    if (gameOver || curIdx >= pieceSeq.length) return;
+    if (!isGridEmpty(grid)) return;
+    if (!matchesPattern(pieceSeq, curIdx, Q1_PATTERN)) return;
+    pushHistory();
+    const result = applyStrategy(grid, pieceSeq, curIdx, Q1_PATTERN, Q1_COLS);
+    if (result.error) {
+      setGameOver(true);
+      setGameOverReason(result.error);
+      return;
+    }
+    setGrid(result.g);
+    setCurIdx(curIdx + result.choices.length);
+    setColChoices([...colChoices, ...result.choices]);
+    setLinesCleared(linesCleared + result.lines);
+    setHoveredCol(null);
+    setGhostCells([]);
+  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, pushHistory]);
+
   const exportResult = useCallback(() => {
     const output = colChoices.join('\n') + '\n';
     downloadBlob(new Blob([output], {type:'text/plain'}), 'tiny_output.txt');
@@ -480,6 +537,9 @@ function TinyGame() {
   const isComplete = pieceSeq.length > 0 && curIdx >= pieceSeq.length && !gameOver;
   const validCols = currentPiece ? getValidColumns(currentPiece) : [];
 
+  const canQ1S1 = pieceSeq.length > 0 && !gameOver && !isComplete
+    && isGridEmpty(grid) && matchesPattern(pieceSeq, curIdx, Q1_PATTERN);
+
   // Next pieces (up to 5)
   const nextPieces = pieceSeq.slice(curIdx + 1, curIdx + 6);
 
@@ -507,6 +567,7 @@ function TinyGame() {
         ))}
         {pieceSeq.length > 0 && <button onClick={undo} disabled={!history.length} style={{...BTN, opacity:history.length?1:.4}}>&#x21A9; 되돌리기</button>}
         {pieceSeq.length > 0 && <button onClick={resetGame} style={BTN}>&#x1F504; 초기화</button>}
+        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background:'#fef3c7', borderColor:'#fbbf24', fontWeight:600}}>Q1 전략1</button>}
         {pieceSeq.length > 0 && <button onClick={saveProgress} style={BTN}>&#x1F4E5; 진행 저장</button>}
         {pieceSeq.length > 0 && <button onClick={exportResult} style={{...BTN, background: isComplete?'#059669':'#3b82f6', color:'#fff', borderColor: isComplete?'#059669':'#3b82f6'}}>&#x1F4BE; 결과 내보내기</button>}
       </div>

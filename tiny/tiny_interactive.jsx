@@ -398,11 +398,20 @@ function TinyGame() {
       }
 
       const col = Q1_COLS[mPos];
+
+      // Snapshot BEFORE the move — const captures freeze values so the
+      // setHistory updater won't see the mutated mGrid/mIdx/… later.
+      const snapGrid = mGrid.map(r=>[...r]);
+      const snapIdx = mIdx;
+      const snapCols = [...mCols];
+      const snapCleared = mCleared;
+      const snapPos = mPos;
+
       const result = executeMove(mGrid, pieceSeq[mIdx], col);
 
       // Push history entry for undo (per-piece)
       setHistory(h => {
-        const entry = { grid:mGrid.map(r=>[...r]), curIdx:mIdx, colChoices:[...mCols], linesCleared:mCleared, gameOver:false, gameOverReason:'', q1Pos:mPos };
+        const entry = { grid:snapGrid, curIdx:snapIdx, colChoices:snapCols, linesCleared:snapCleared, gameOver:false, gameOverReason:'', q1Pos:snapPos };
         const n = [...h, entry];
         return n.length > 500 ? n.slice(-500) : n;
       });

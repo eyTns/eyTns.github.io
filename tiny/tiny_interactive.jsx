@@ -223,12 +223,15 @@ function TinyGame() {
   const [ghostCells, setGhostCells] = useState([]);
   const [flashRows, setFlashRows] = useState([]);
   const [q1Pos, setQ1Pos] = useState(null); // null=not in cycle, 0-17=position within 18-step cycle
+  const [q1Running, setQ1Running] = useState(false); // auto-play running flag
 
   const cvRef = useRef(null);
   const fiRef = useRef(null);
+  const q1StopRef = useRef(false); // signal to stop auto-play
 
   // ===== Game Actions =====
   const startNewGame = useCallback((seq) => {
+    q1StopRef.current = true;
     setPieceSeq(seq);
     setTotalPieces(seq.length);
     setGrid(createEmptyGrid());
@@ -241,6 +244,7 @@ function TinyGame() {
     setHoveredCol(null);
     setGhostCells([]);
     setQ1Pos(null);
+    setQ1Running(false);
   }, []);
 
   const resetGame = useCallback(() => {
@@ -256,6 +260,8 @@ function TinyGame() {
   }, [grid, curIdx, colChoices, linesCleared, gameOver, gameOverReason, q1Pos]);
 
   const undo = useCallback(() => {
+    q1StopRef.current = true;
+    setQ1Running(false);
     setHistory(h => {
       if (!h.length) return h;
       const prev = h[h.length-1];
@@ -341,32 +347,92 @@ function TinyGame() {
   }, [grid, curIdx, colChoices, pieceSeq, totalPieces, linesCleared, gameOver, gameOverReason]);
 
   const runQ1Strategy1 = useCallback(() => {
+    if (q1Running) {
+      // Already running — stop it
+      q1StopRef.current = true;
+      return;
+    }
     if (gameOver || curIdx >= pieceSeq.length) return;
-    // Determine position in cycle
+
+    // Must be in a cycle or able to start one
     let pos = q1Pos;
     if (pos === null) {
-      // Starting new cycle: board must be empty and pattern must match
       if (!isGridEmpty(grid) || !matchesPattern(pieceSeq, curIdx, Q1_PATTERN)) return;
       pos = 0;
     }
-    const col = Q1_COLS[pos];
-    pushHistory();
-    const result = executeMove(grid, pieceSeq[curIdx], col);
-    if (!result.success) {
-      setGameOver(true);
-      setGameOverReason(result.reason);
-      return;
+
+    // Start auto-play using mutable state to avoid stale closures
+    q1StopRef.current = false;
+    setQ1Running(true);
+
+    let mGrid = grid.map(r=>[...r]);
+    let mIdx = curIdx;
+    let mCols = [...colChoices];
+    let mCleared = linesCleared;
+    let mPos = pos;
+
+    function finish(finalPos) {
+      setGrid(mGrid);
+      setCurIdx(mIdx);
+      setColChoices(mCols);
+      setLinesCleared(mCleared);
+      setQ1Pos(finalPos);
+      setHoveredCol(null);
+      setGhostCells([]);
+      setQ1Running(false);
     }
-    setGrid(result.grid);
-    setCurIdx(curIdx + 1);
-    setColChoices([...colChoices, col]);
-    setLinesCleared(linesCleared + result.cleared);
-    setHoveredCol(null);
-    setGhostCells([]);
-    // Advance cycle position
-    const nextPos = pos + 1;
-    setQ1Pos(nextPos >= Q1_COLS.length ? null : nextPos);
-  }, [gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos, pushHistory]);
+
+    function step() {
+      if (q1StopRef.current || mIdx >= pieceSeq.length) {
+        finish(mPos >= Q1_COLS.length ? null : mPos);
+        return;
+      }
+
+      // At cycle boundary: check if new cycle can start
+      if (mPos >= Q1_COLS.length) {
+        if (!isGridEmpty(mGrid) || !matchesPattern(pieceSeq, mIdx, Q1_PATTERN)) {
+          finish(null);
+          return;
+        }
+        mPos = 0;
+      }
+
+      const col = Q1_COLS[mPos];
+      const result = executeMove(mGrid, pieceSeq[mIdx], col);
+
+      // Push history entry for undo (per-piece)
+      setHistory(h => {
+        const entry = { grid:mGrid.map(r=>[...r]), curIdx:mIdx, colChoices:[...mCols], linesCleared:mCleared, gameOver:false, gameOverReason:'', q1Pos:mPos };
+        const n = [...h, entry];
+        return n.length > 500 ? n.slice(-500) : n;
+      });
+
+      if (!result.success) {
+        setGameOver(true);
+        setGameOverReason(result.reason);
+        finish(mPos);
+        return;
+      }
+
+      mGrid = result.grid;
+      mIdx = mIdx + 1;
+      mCols = [...mCols, col];
+      mCleared = mCleared + result.cleared;
+      mPos = mPos + 1;
+
+      // Update visible state for animation
+      setGrid(mGrid.map(r=>[...r]));
+      setCurIdx(mIdx);
+      setColChoices([...mCols]);
+      setLinesCleared(mCleared);
+      setQ1Pos(mPos >= Q1_COLS.length ? null : mPos);
+
+      // Schedule next step
+      setTimeout(step, 10);
+    }
+
+    step();
+  }, [q1Running, gameOver, curIdx, pieceSeq, grid, colChoices, linesCleared, q1Pos]);
 
   const exportResult = useCallback(() => {
     const output = colChoices.join('\n') + '\n';
@@ -529,10 +595,10 @@ function TinyGame() {
   const isComplete = pieceSeq.length > 0 && curIdx >= pieceSeq.length && !gameOver;
   const validCols = currentPiece ? getValidColumns(currentPiece) : [];
 
-  const canQ1S1 = pieceSeq.length > 0 && !gameOver && !isComplete && (
+  const canQ1S1 = q1Running || (pieceSeq.length > 0 && !gameOver && !isComplete && (
     q1Pos !== null ||
     (isGridEmpty(grid) && matchesPattern(pieceSeq, curIdx, Q1_PATTERN))
-  );
+  ));
 
   // Next pieces (up to 5)
   const nextPieces = pieceSeq.slice(curIdx + 1, curIdx + 6);
@@ -561,7 +627,7 @@ function TinyGame() {
         ))}
         {pieceSeq.length > 0 && <button onClick={undo} disabled={!history.length} style={{...BTN, opacity:history.length?1:.4}}>&#x21A9; 되돌리기</button>}
         {pieceSeq.length > 0 && <button onClick={resetGame} style={BTN}>&#x1F504; 초기화</button>}
-        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background:'#fef3c7', borderColor:'#fbbf24', fontWeight:600}}>Q1 전략1{q1Pos !== null ? ` (${q1Pos}/${Q1_COLS.length})` : ''}</button>}
+        {canQ1S1 && <button onClick={runQ1Strategy1} style={{...BTN, background: q1Running ? '#fecaca' : '#fef3c7', borderColor: q1Running ? '#ef4444' : '#fbbf24', fontWeight:600}}>{q1Running ? 'Q1 전략1 중지' : 'Q1 전략1'}{q1Pos !== null && !q1Running ? ` (${q1Pos}/${Q1_COLS.length})` : ''}</button>}
         {pieceSeq.length > 0 && <button onClick={saveProgress} style={BTN}>&#x1F4E5; 진행 저장</button>}
         {pieceSeq.length > 0 && <button onClick={exportResult} style={{...BTN, background: isComplete?'#059669':'#3b82f6', color:'#fff', borderColor: isComplete?'#059669':'#3b82f6'}}>&#x1F4BE; 결과 내보내기</button>}
       </div>

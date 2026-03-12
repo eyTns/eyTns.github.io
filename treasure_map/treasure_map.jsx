@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+const { useState, useCallback } = React;
 
 // --- Constants ---
 const P = {
@@ -175,7 +175,7 @@ function Message({ text }) {
 }
 
 // --- App ---
-export default function App() {
+function App() {
   const empty = () => Array.from({ length: 4 }, () => Array(4).fill(0));
   const [phase, setPhase] = useState(P.LANDING);
   const [grid, setGrid] = useState(empty);

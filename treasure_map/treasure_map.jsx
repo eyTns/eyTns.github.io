@@ -455,7 +455,7 @@ function App() {
           <div style={{ color: "#e0d4c0", fontFamily: "'Noto Serif KR', 'Batang', serif", fontSize: "14px", textAlign: "center", padding: "24px 12px", lineHeight: "2", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
             <p>이 마술은 부호이론쪽 지식을 사용하여 만들었어요. 정확한 계산식까지 알려드릴수는 없지만, 해법은 아래 동영상을 참고하세요.</p>
             <iframe
-              width="100%" height="220" style={{ maxWidth: "380px", borderRadius: "12px", border: "none" }}
+              width="100%" height="220" style={{ maxWidth: "380px", border: "none" }}
               src="https://www.youtube.com/embed/as7Gkm7Y7h4?si=pew4J43AHQ6DSvpq"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen

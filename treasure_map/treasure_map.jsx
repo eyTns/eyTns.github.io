@@ -128,7 +128,7 @@ function Grid({ grid, onCellClick, highlightedCell, highlightColor, selectable, 
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "clamp(6px, 1.5vw, 12px)",
-      width: "100%", maxWidth: "380px", margin: "0 auto", padding: "20px",
+      boxSizing: "border-box", width: "100%", maxWidth: "380px", margin: "0 auto", padding: "20px",
       background: "radial-gradient(ellipse at center, #1a472a 0%, #0f2d1a 70%, #091a0f 100%)",
       borderRadius: "16px", border: "3px solid #2a5a3a",
       boxShadow: "inset 0 2px 20px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.5)",

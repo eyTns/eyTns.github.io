@@ -271,7 +271,7 @@ function App() {
   return (
     <div style={{
       minHeight: "100vh", background: "linear-gradient(180deg, #201812 0%, #281e16 50%, #201812 100%)",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
       padding: "20px", fontFamily: "'Noto Serif KR', 'Batang', serif", wordBreak: "keep-all",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap" rel="stylesheet" />

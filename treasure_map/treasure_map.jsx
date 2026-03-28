@@ -6,7 +6,7 @@ const P = {
   A_SEL: 3, A_FLIP: 4, A_WHO: 5, A_COMPING: 6, A_ASK_NF: 7, A_HUMAN: 8, A_DONE: 9,
   B_INPUT: 10, B_WHO: 11, B_HUMAN: 12, B_DONE: 13,
   C_INTRO: 14, C_SEL: 15, C_FLIP: 16, C_COMPING: 17, C_ASK_NF: 18, C_DONE: 19,
-  D_INTRO: 20, D_INPUT: 21, D_RESULT: 22, D_YES: 23, D_NO: 24, D_HOWTO: 25,
+  D_INTRO: 20, D_PICK: 26, D_INPUT: 21, D_RESULT: 22, D_YES: 23, D_NO: 24, D_HOWTO: 25,
 };
 
 // --- Inject keyframes ---
@@ -194,6 +194,7 @@ function App() {
   const click = (i, j) => {
     const pos = i * 4 + j;
     if (phase === P.A_SEL || phase === P.C_SEL) { setTreasure(pos); setShowTreasure(pos); }
+    else if (phase === P.D_PICK) { setTreasure(treasure === pos ? null : pos); setShowTreasure(treasure === pos ? null : pos); }
     else if (phase === P.A_FLIP || phase === P.C_FLIP) { flip(i, j); }
     else if (phase === P.A_HUMAN) { flip(i, j); setPhase(P.A_DONE); }
     else if (phase === P.B_INPUT || phase === P.D_INPUT) { flip(i, j); }
@@ -260,7 +261,7 @@ function App() {
   const reset = () => { setGrid(empty()); setTreasure(null); setHlCell(null); setShowTreasure(null); setFading(false); setFindWho(null); setShowTrToggle(true); setPhase(P.L_YES); };
   const goBack = () => { setGrid(empty()); setTreasure(null); setHlCell(null); setShowTreasure(null); setFading(false); setFindWho(null); setShowTrToggle(true); setPhase(P.LANDING); };
 
-  const sel = [P.A_SEL, P.A_FLIP, P.A_HUMAN, P.B_INPUT, P.B_HUMAN, P.C_SEL, P.C_FLIP, P.D_INPUT].includes(phase);
+  const sel = [P.A_SEL, P.A_FLIP, P.A_HUMAN, P.B_INPUT, P.B_HUMAN, P.C_SEL, P.C_FLIP, P.D_PICK, P.D_INPUT].includes(phase);
 
   const hlColor = [P.A_COMPING, P.A_ASK_NF, P.A_DONE, P.C_COMPING, P.C_ASK_NF].includes(phase) ? "#7eb8e0" : "#ffd700";
 
@@ -415,12 +416,17 @@ function App() {
             <p>이번에는 역할을 바꿔서 해볼게요.</p>
             <p>지도를 만들 수 있는 사람과 같이 진행하고, 다음 화면에 완성된 지도를 입력해주세요.</p>
             <p>방법을 까먹었다면 지도를 만들 수 있는 사람에게 물어보세요.</p>
-            <div style={{ paddingTop: "12px" }}><Btn onClick={() => { setGrid(empty()); setPhase(P.D_INPUT); }}>시작하기</Btn></div>
+            <div style={{ paddingTop: "12px" }}><Btn onClick={() => { setGrid(empty()); setTreasure(null); setShowTreasure(null); setPhase(P.D_PICK); }}>시작하기</Btn></div>
           </div>
         )}
 
+        {phase === P.D_PICK && (<>
+          <Message text="보물을 숨길 칸을 마음속으로 정해서 지도 제작자에게 알려주세요." />{g()}
+          <div style={bot}><Btn onClick={() => { setShowTreasure(null); setPhase(P.D_INPUT); }}>다음</Btn></div>
+        </>)}
+
         {phase === P.D_INPUT && (<>
-          <Message text="완성된 지도를 입력해주세요." />{g()}
+          <Message text="지도를 원하는대로 만든 후에 지도 제작자에게 전달해주세요." />{g()}
           <div style={bot}><Btn onClick={dSubmit}>제출</Btn></div>
         </>)}
 

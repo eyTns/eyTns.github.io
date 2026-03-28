@@ -24,6 +24,7 @@
 - 보물지도 항목 추가 (기존 패턴에 맞춤)
 - trailing space는 Edit 도구로 안 되므로 sed 사용
 - 빈 줄과 trailing space를 동시에 처리해야 했는데 분리해서 실수 발생
+- 작성한 README 내용을 그대로 사용자에게 보여주어 사용자가 직접 수정할 수 있도록 한다
 
 ## 참고사항
 
@@ -34,4 +35,5 @@
 
 ### raw.githack.com으로 브랜치 미리보기
 - URL 구조: `https://raw.githack.com/{user}/{repo}/{branch}/{path}`
-- 예시: `https://raw.githack.com/eyTns/eyTns.github.io/claude/add-treasure-map-app-LvbMz/treasure_map/index.html`
+- 작업을 마친 후 사용자에게 미리보기 링크를 제공한다
+- 예시: [보물지도 미리보기](https://raw.githack.com/eyTns/eyTns.github.io/claude/add-treasure-map-app-LvbMz/treasure_map/index.html)

@@ -34,4 +34,5 @@
 
 ### raw.githack.com으로 브랜치 미리보기
 - URL 구조: `https://raw.githack.com/{user}/{repo}/{branch}/{path}`
-- 예시: `https://raw.githack.com/eyTns/eyTns.github.io/claude/add-treasure-map-app-LvbMz/treasure_map/index.html`
+- 작업을 마친 후 사용자에게 미리보기 링크를 제공한다
+- 예시: [보물지도 미리보기](https://raw.githack.com/eyTns/eyTns.github.io/claude/add-treasure-map-app-LvbMz/treasure_map/index.html)

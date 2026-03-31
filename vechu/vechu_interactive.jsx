@@ -10,8 +10,8 @@ function HowToPlayModal({ onClose }) {
     }}>
       <div style={{
         background: COLOR.white, borderRadius: 0, padding: 24,
-        width: 'calc(100vw - 40px)', height: 'calc(100vh - 40px)',
-        overflowY: 'auto',
+        width: 'calc(100vw - 120px)', height: 'calc(100vh - 120px)',
+        overflowY: 'auto', border: `1px solid ${COLOR.border}`,
         position: 'relative', color: COLOR.text, fontFamily: 'system-ui, sans-serif',
       }}>
         <button onClick={onClose} style={{
@@ -108,7 +108,7 @@ function SetupScreen({ onStart }) {
           <button onClick={handleStart} style={BTN_LARGE}>게임 시작</button>
           <button onClick={() => setShowHowTo(true)} style={{
             ...BTN, padding: '14px 32px', fontSize: 18, fontWeight: 600,
-            background: '#2db85e', color: COLOR.white, border: `1px solid ${COLOR.greenDark}`,
+            background: '#5cc87c', color: COLOR.white, border: `1px solid ${COLOR.greenDark}`,
           }}>플레이 방법</button>
         </div>
       </div>

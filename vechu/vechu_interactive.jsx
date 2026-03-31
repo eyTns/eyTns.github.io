@@ -122,17 +122,23 @@ function ScoreHistory({ records, expanded, onToggle }) {
             <div style={{ color: COLOR.textLight, textAlign: 'center', padding: 12 }}>아직 기록이 없습니다</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {records.map((r, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${COLOR.border}` }}>
-                  <span style={{ color: COLOR.textLight, minWidth: 28 }}>#{r.turnNumber}</span>
-                  <span style={{ fontWeight: 600, minWidth: 64 }}>{r.playerName}</span>
-                  <span style={{ color: COLOR.textMuted }}>[{r.dice[0]},{r.dice[1]}]</span>
-                  <span style={{ color: r.isAdd ? COLOR.green : COLOR.red, fontWeight: 600 }}>
-                    {r.isAdd ? '+' : '-'}{diceProduct(r.dice)}
-                  </span>
-                  <span style={{ color: COLOR.textMuted }}>{r.scoreBefore} → {r.scoreAfter}</span>
-                </div>
-              ))}
+              {records.map((r, i) => {
+                const product = diceProduct(r.dice);
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${COLOR.border}` }}>
+                    <span style={{ color: COLOR.textLight, minWidth: 28 }}>#{r.turnNumber}</span>
+                    <span style={{ fontWeight: 600, minWidth: 64 }}>{r.playerName}</span>
+                    <span style={{ color: COLOR.textMuted }}>{r.dice[0]} &times; {r.dice[1]} = {product}</span>
+                    <span style={{ color: COLOR.textMuted }}>
+                      {r.scoreBefore}{' '}
+                      <span style={{ color: r.isAdd ? COLOR.green : COLOR.red, fontWeight: 600 }}>
+                        {r.isAdd ? '+' : '\u2212'}{product}
+                      </span>
+                      {' '}= {r.scoreAfter}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -464,20 +470,19 @@ function VechuGame() {
         {phase !== PHASE.WAITING && (
           <div>
             {/* 주사위 */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <DiceDisplay
                 value={isRolling ? displayDice[0] : dice[0]}
                 selected={selectedDice.includes(0)}
                 selectable={phase === PHASE.REROLL}
                 onTap={() => toggleDieSelection(0)}
-
               />
+              <span style={{ fontSize: 28, fontWeight: 700, color: COLOR.textMuted, lineHeight: '72px' }}>&times;</span>
               <DiceDisplay
                 value={isRolling ? displayDice[1] : dice[1]}
                 selected={selectedDice.includes(1)}
                 selectable={phase === PHASE.REROLL}
                 onTap={() => toggleDieSelection(1)}
-
               />
             </div>
 

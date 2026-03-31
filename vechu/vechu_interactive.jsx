@@ -125,11 +125,11 @@ function ScoreHistory({ records, expanded, onToggle }) {
               {records.map((r, i) => {
                 const product = diceProduct(r.dice);
                 return (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${COLOR.border}` }}>
-                    <span style={{ color: COLOR.textLight, minWidth: 28 }}>#{r.turnNumber}</span>
-                    <span style={{ fontWeight: 600, minWidth: 64 }}>{r.playerName}</span>
-                    <span style={{ color: COLOR.textMuted }}>{r.dice[0]} &times; {r.dice[1]} = {product}</span>
-                    <span style={{ color: COLOR.textMuted }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${COLOR.border}` }}>
+                    <span style={{ flex: '1 0 0', color: COLOR.textLight }}>#{r.turnNumber}</span>
+                    <span style={{ flex: '2 0 0', fontWeight: 600 }}>{r.playerName}</span>
+                    <span style={{ flex: '2 0 0', color: COLOR.textMuted }}>{r.dice[0]} &times; {r.dice[1]} = {product}</span>
+                    <span style={{ flex: '2 0 0', color: COLOR.textMuted }}>
                       {r.scoreBefore}{' '}
                       <span style={{ color: r.isAdd ? COLOR.green : COLOR.red, fontWeight: 600 }}>
                         {r.isAdd ? '+' : '\u2212'}{product}

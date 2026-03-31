@@ -1,10 +1,35 @@
 const { useState, useRef, useEffect, useCallback } = React;
 
 // ===== 설정 화면 =====
+function HowToPlayModal({ onClose }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: COLOR.white, borderRadius: 0, padding: 24,
+        maxWidth: 440, width: '90%', maxHeight: '80vh', overflowY: 'auto',
+        position: 'relative', color: COLOR.text, fontFamily: 'system-ui, sans-serif',
+      }}>
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 12, right: 12,
+          background: 'none', border: 'none', fontSize: 22, cursor: 'pointer',
+          color: COLOR.textMuted, lineHeight: 1, padding: 4,
+        }}>&times;</button>
+        <h2 style={{ fontSize: 20, margin: '0 0 16px', color: COLOR.green }}>플레이 방법</h2>
+        <p style={{ color: COLOR.textMuted }}>(작성 예정)</p>
+      </div>
+    </div>
+  );
+}
+
 function SetupScreen({ onStart }) {
   const [playerCount, setPlayerCount] = useState(2);
   const [names, setNames] = useState(['', '']);
   const [isLarge, setIsLarge] = useState(false);
+  const [showHowTo, setShowHowTo] = useState(false);
 
   const updateCount = (n) => {
     const count = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, n));
@@ -78,9 +103,16 @@ function SetupScreen({ onStart }) {
           </div>
         </div>
 
-        <button onClick={handleStart} style={BTN_LARGE}>게임 시작</button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <button onClick={handleStart} style={BTN_LARGE}>게임 시작</button>
+          <button onClick={() => setShowHowTo(true)} style={{
+            ...BTN, padding: '14px 32px', fontSize: 18, fontWeight: 600,
+            background: COLOR.greenLight, color: COLOR.greenDark, border: `1px solid ${COLOR.greenBorder}`,
+          }}>플레이 방법</button>
+        </div>
       </div>
 
+      {showHowTo && <HowToPlayModal onClose={() => setShowHowTo(false)} />}
     </div>
   );
 }

@@ -464,7 +464,7 @@ function VechuGame() {
         {phase !== PHASE.WAITING && (
           <div>
             {/* 주사위 */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <DiceDisplay
                 value={isRolling ? displayDice[0] : dice[0]}
                 selected={selectedDice.includes(0)}
@@ -472,6 +472,17 @@ function VechuGame() {
                 onTap={() => toggleDieSelection(0)}
 
               />
+              <span style={{
+                height: 72,
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: 32,
+                fontWeight: 700,
+                lineHeight: 1,
+                color: COLOR.text,
+                userSelect: 'none',
+                transform: 'translateY(-2px)',
+              }}>×</span>
               <DiceDisplay
                 value={isRolling ? displayDice[1] : dice[1]}
                 selected={selectedDice.includes(1)}

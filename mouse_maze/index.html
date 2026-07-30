@@ -142,6 +142,7 @@
       <button class="btn" id="reset">Reset</button>
       <button class="btn" id="save">Save a maze</button>
       <button class="btn" id="load">Load a maze</button>
+      <button class="btn" id="submit">Submit maze</button>
       <button class="btn" id="share">Share game</button>
       <button class="btn" id="awards">Awards</button>
       <div class="speeds" id="speeds"></div>
@@ -189,6 +190,26 @@ const CONFIG = {
   2: { tileAwards:[10,20,50,250,1000], moveAwards:[400,800,1136,4000,20000], ladder:LADDER }
 };
 
+// The always-open rung, and therefore the speed a fresh profile starts on.
+// Read from the ladder so rebalancing the block above stays a data-only edit.
+const BASE_LEVEL = 1;
+const BASE_SPEED = LADDER[BASE_LEVEL].v;
+
+/* Set this to the score server's origin, e.g. 'http://localhost:8787' while
+ * developing. Empty means no server yet, and Submit explains that instead of
+ * failing. The client posts the MAZE, never a score: the server decodes it,
+ * runs its own copy of sim.js and decides the number itself.
+ */
+// Leave API_OVERRIDE empty and the page talks to whatever server handed it out,
+// which is what happens when you open http://localhost:8787. Opened as a plain
+// file there is no server, and Submit says so instead of failing. Set the
+// override only when the game is hosted apart from its API.
+const API_OVERRIDE = '';
+const API_BASE = API_OVERRIDE ||
+  (location.protocol === 'http:' || location.protocol === 'https:' ? location.origin : '');
+const SUBMIT_COOLDOWN = 10000;
+let lastSubmit = 0;
+
 /* --------------------------------------------------------------- geometry */
 const GEO = {
   1: { N:13, tile:30, gap:0,  bar:30 },
@@ -222,16 +243,31 @@ const Store = (() => {
 })();
 
 /* ---------------------------------------------------------------- progress */
-const P = { 1:{ach:{},best:0,bestWorst:0,spd:2.5}, 2:{ach:{},best:0,bestWorst:0,spd:2.5}, shared:false };
+const P = { 1:{ach:{},best:0,bestWorst:0,spd:BASE_SPEED}, 2:{ach:{},best:0,bestWorst:0,spd:BASE_SPEED}, shared:false, nick:'', token:'' };
 
 async function loadProgress(){
   for (const g of [1,2]) {
     const raw = await Store.get('mm.progress.'+g);
     if (raw) { try { const o = JSON.parse(raw);
       P[g].ach = o.ach||{}; P[g].best = o.best||0;
-      P[g].bestWorst = o.bestWorst||0; P[g].spd = o.spd||2.5; } catch(e){} }
+      P[g].bestWorst = o.bestWorst||0; P[g].spd = o.spd||BASE_SPEED; } catch(e){} }
+    // Invariant: the stored speed is always a value on an OPEN rung. A profile
+    // written by an older build can carry a value outside the open list (e.g.
+    // 2.5 after the ladder moved to 2/4/...), and a value outside the list gets
+    // re-projected every time the list grows; that projection shifting from 4
+    // to 2 on the first escape is exactly the "slow pad pressed itself" bug.
+    // Pin such a profile to what it already resolves to, once, on load.
+    const L = CONFIG[g].ladder, open = unlockedLevels(g);
+    if (!open.some(i => L[i].v === P[g].spd)) {
+      P[g].spd = L[currentLevel(g)].v;
+      saveProgress(g);                 // untouched on healthy profiles
+    }
   }
   P.shared = (await Store.get('mm.shared')) === '1';
+  P.nick = (await Store.get('mm.nick')) || '';
+  // Claims the nickname on the score server until real logins exist. Losing it
+  // means losing the name, which is exactly what an account will later fix.
+  P.token = (await Store.get('mm.token')) || '';
 }
 function saveProgress(g){ Store.set('mm.progress.'+g,
   JSON.stringify({ach:P[g].ach, best:P[g].best, bestWorst:P[g].bestWorst, spd:P[g].spd})); }
@@ -245,10 +281,19 @@ function unlockedLevels(g){
 // is overridden is when a rebalanced cut-line locks a rung that used to be
 // open, and then it steps down to the nearest rung still available.
 function currentLevel(g){
+  // Invariant (established by loadProgress): P[g].spd is always the value of an
+  // open rung, so the exact-match loop below is the whole function in normal
+  // play. Selection therefore cannot move when the open list merely GROWS.
   const L = CONFIG[g].ladder, up = unlockedLevels(g), want = P[g].spd;
   for (const i of up) if (L[i].v === want) return i;
-  let best = up[0];                       // otherwise the fastest open rung
-  for (const i of up) if (L[i].v <= want && L[i].v > L[best].v) best = i;   // at or below
+  // Reachable only when a rung DISAPPEARS mid-session, i.e. a cut-line
+  // rebalance locks a rung the player had chosen. Fall back to the base rung,
+  // never to the slowest open one: dropping a player onto the slow pad because
+  // their saved data went bad is the worst possible guess.
+  let best = up.indexOf(BASE_LEVEL) >= 0 ? BASE_LEVEL : up[up.length-1];
+  if (typeof want === 'number' && isFinite(want)){
+    for (const i of up) if (L[i].v <= want && L[i].v > L[best].v) best = i;
+  }
   return best;
 }
 function speedFor(g){ return CONFIG[g].ladder[currentLevel(g)].v; }
@@ -480,7 +525,7 @@ function refresh(){
   $('go').textContent = phase==='running' ? 'Stop the mouse'
     : (ok ? 'Release the mouse!' : 'Release the mouse! ⚠️');
   const idle = phase!=='running';
-  for (const id of ['reset','load','save','share']) $(id).disabled = !idle;
+  for (const id of ['reset','load','save','share','submit']) $(id).disabled = !idle;
   $('undo').disabled = !idle || history.length===0;
 
   const pv = $('preview');
@@ -665,6 +710,70 @@ function sheetLoad(){
   };
 }
 
+function sheetSubmit(){
+  const check = S.validate(spec);
+  if (!check.ok){
+    setStatus("There is no route from the entrance to the exit, so there is nothing to submit yet.");
+    return;
+  }
+  const code = S.encode(spec);
+
+  if (!API_BASE){
+    openSheet('<h2>Submit maze</h2>'
+      + '<p>No score server is connected yet. Once one is running, set API_BASE near the '
+      + 'top of the script and this button will send the maze straight to it.</p>'
+      + '<p>Keep the code below in the meantime. A maze is all a submission needs, so '
+      + 'nothing about this layout is lost.</p>'
+      + '<textarea id="mzcode" readonly>'+code+'</textarea>'
+      + '<div class="row"><button class="btn" id="mzcopy">Copy</button>'
+      + '<button class="btn" id="mzclose">Close</button></div>');
+    $('mzcopy').onclick = async () => {
+      const t = $('mzcode'); t.select();
+      try { await navigator.clipboard.writeText(t.value); } catch(e){ document.execCommand('copy'); }
+      $('mzcopy').textContent = 'Copied';
+    };
+    $('mzclose').onclick = closeSheet;
+    return;
+  }
+
+  openSheet('<h2>Submit maze</h2>'
+    + '<p>The server re-runs this maze and decides the score itself.</p>'
+    + '<p style="color:var(--ink)">Nickname</p>'
+    + '<textarea id="mznick" style="height:38px">'+P.nick+'</textarea>'
+    + '<p id="mzerr" style="color:var(--red)"></p>'
+    + '<div class="row"><button class="btn" id="mzgo">Submit</button>'
+    + '<button class="btn" id="mzclose">Close</button></div>');
+  $('mzclose').onclick = closeSheet;
+  $('mzgo').onclick = async () => {
+    const nick = $('mznick').value.trim();
+    if (!nick) return $('mzerr').textContent = 'Pick a nickname first.';
+    const wait = SUBMIT_COOLDOWN - (Date.now() - lastSubmit);
+    if (wait > 0) return $('mzerr').textContent = 'Wait ' + Math.ceil(wait/1000) + 's before submitting again.';
+    $('mzgo').disabled = true; $('mzerr').textContent = 'Sending...';
+    P.nick = nick; Store.set('mm.nick', nick);
+    try {
+      const res = await fetch(API_BASE + '/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: nick, maze: code, token: P.token || undefined })
+      });
+      const data = await res.json();
+      lastSubmit = Date.now();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      if (data.token && data.token !== P.token){ P.token = data.token; Store.set('mm.token', data.token); }
+      const rank = data.rankCapped ? '1,000,000+' : Number(data.rank).toLocaleString();
+      setStatus(data.duplicate
+        ? 'Already on the board: ' + Number(data.turns).toLocaleString() + ' turns, rank ' + rank + '.'
+        : 'Registered: ' + Number(data.turns).toLocaleString() + ' turns, rank ' + rank + '.');
+      closeSheet();
+      refresh();
+    } catch (err) {
+      $('mzgo').disabled = false;
+      $('mzerr').textContent = 'Could not reach the server: ' + err.message;
+    }
+  };
+}
+
 async function doShare(){
   const url = location.href.split('#')[0];
   let done = false;
@@ -721,6 +830,7 @@ $('reset').onclick = () => { pushHistory(); spec = S.emptySpec(game); run=null; 
   phase='edit'; setStatus('Board cleared.'); refresh(); };
 $('save').onclick = sheetSave;
 $('load').onclick = sheetLoad;
+$('submit').onclick = sheetSubmit;
 $('share').onclick = doShare;
 $('awards').onclick = sheetAwards;
 board.addEventListener('click', onBoard);

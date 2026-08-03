@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mouse Maze</title>
+<style>
+  :root{
+    --chrome:#2b2b2b; --chrome-lo:#1e1e1e; --chrome-hi:#3c3c3c;
+    --frame:#000; --ink:#f2f2f2; --ink-dim:#9a9a9a;
+    --red:#e01b1b; --red-dim:#7a4141;
+    --grass:#33cc00; --plank:#e08a2c; --brick:#c8583c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:#141414;color:var(--ink);
+    font-family:"Arial Narrow","Roboto Condensed",Impact,"Haettenschweiler",sans-serif;
+    letter-spacing:.04em}
+  body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:10px}
+
+  .btn{display:flex;align-items:center;justify-content:center;width:100%;height:38px;
+    padding:4px 8px;background:var(--chrome);border:2px solid;
+    border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
+    color:var(--red);font:inherit;font-size:15px;font-weight:700;
+    text-align:center;cursor:pointer;line-height:1.1;overflow:hidden}
+  .btn:hover{background:#343434}
+  .btn:active{border-color:var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo)}
+  .btn:disabled{color:var(--red-dim);cursor:default;background:var(--chrome)}
+  .btn:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
+  .btn.go{height:50px;font-size:17px}
+
+  /* ---- title screen ---- */
+  #title{margin:auto;text-align:center;max-width:460px;width:100%}
+  #title h1{margin:0 0 22px;font-size:clamp(40px,15vw,78px);line-height:1;font-weight:700;
+    white-space:nowrap;color:var(--grass);text-shadow:4px 4px 0 #000}
+  .picks{display:grid;gap:12px}
+  .pick{display:flex;gap:14px;align-items:center;text-align:left;padding:14px;
+    background:var(--chrome);border:2px solid;
+    border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
+    color:var(--ink);font:inherit;cursor:pointer}
+  .pick:hover{background:#343434}
+  .pick:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
+  .pick b{display:block;font-size:22px;color:#f5c542}
+  .pick span{font-size:13px;color:var(--ink-dim)}
+  .pick canvas{flex:none;background:#000;image-rendering:pixelated}
+
+  /* ---- game screen ---- */
+  #game{display:none;width:100%;max-width:760px;margin:auto}
+  #game.on{display:block}
+  .bar{background:var(--chrome);border:2px solid;
+    border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
+    padding:5px 9px;font-size:clamp(11px,2.5vw,14px);font-weight:700;
+    text-align:center;line-height:1.15;display:flex;overflow:hidden;
+    align-items:center;justify-content:center}
+  /* Every control keeps a fixed height so a long status line cannot resize
+     the row it sits in. */
+  .topline{display:flex;gap:8px;height:58px;margin-bottom:8px}
+  .topline .bar{flex:1;margin:0;height:100%}
+  .topline .btn{width:auto;flex:none;height:100%;padding:4px 14px;font-size:13px}
+
+  .stage{display:flex;gap:10px;align-items:flex-start}
+  .boardwrap{flex:1 1 auto;min-width:0;background:var(--frame);padding:6px;
+    border:2px solid var(--chrome-lo)}
+  canvas#board{display:block;width:100%;height:auto;touch-action:manipulation;cursor:pointer}
+  .side{flex:0 0 132px;display:grid;gap:7px;align-content:start}
+  .readout{background:#000;border:2px solid var(--chrome-lo);height:50px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;overflow:hidden}
+  .readout b{display:block;font-size:21px;color:var(--grass);line-height:1.05}
+  .readout span{font-size:10px;color:var(--ink-dim);letter-spacing:.06em}
+  .readout.locked b{color:var(--ink-dim);font-size:14px}
+  /* One column of buttons: 3 pads + 2 gaps == one button. Two columns of
+     buttons: 6 pads + 5 gaps == the pair, which makes 3 pads == one button
+     again. Same gap as .side, or the arithmetic stops working. */
+  .speeds{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .sp{aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:20%;
+    background:var(--chrome);border:2px solid;
+    border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
+    color:#6b6b6b;cursor:pointer}
+  .sp.on{border-color:var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo);
+    background:#1d2a12;color:var(--grass)}
+  .sp:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
+  .hint{margin:8px 2px 0;font-size:12.5px;color:var(--ink-dim);text-align:center;line-height:1.4}
+
+  @media (max-width:640px){
+    .stage{flex-direction:column}
+    .side{flex:none;width:100%;grid-template-columns:1fr 1fr}
+    .side .btn.go,.side .readout,.side .speeds{grid-column:1/-1}
+    .side .speeds{grid-template-columns:repeat(6,1fr)}
+  }
+
+  /* ---- modal ---- */
+  .veil{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;
+    align-items:center;justify-content:center;padding:14px;z-index:20}
+  .veil.on{display:flex}
+  .sheet{background:var(--chrome);border:3px solid var(--red);padding:16px;
+    width:100%;max-width:420px;max-height:90dvh;overflow:auto}
+  .sheet h2{margin:0 0 12px;text-align:center;font-size:22px;
+    color:#f5c542;letter-spacing:.06em}
+  .sheet p{font-size:13px;color:var(--ink-dim);margin:0 0 8px;line-height:1.35}
+  .sheet textarea{width:100%;height:80px;background:#000;color:var(--grass);
+    border:2px solid var(--chrome-lo);font-family:ui-monospace,monospace;font-size:12px;
+    padding:8px;resize:vertical;letter-spacing:0}
+  .sheet .row{display:flex;gap:8px;margin-top:10px}
+  .trophies{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+  .tro{aspect-ratio:1;background:#111;border:2px solid #5a4a20;display:flex;
+    align-items:center;justify-content:center;text-align:center;padding:4px;
+    font-size:10.5px;font-weight:700;color:#4a4a4a;line-height:1.15}
+  .tro.got{border-color:#f5c542;background:#1d2a12;color:var(--grass)}
+  .trolabel{text-align:center;font-size:13px;color:#f5c542;min-height:18px;margin-bottom:10px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<section id="title">
+  <h1>Mouse Maze</h1>
+  <div class="picks">
+    <button class="pick" data-game="1">
+      <canvas width="66" height="66" data-prev="1"></canvas>
+      <div><b>Maze 1</b><span>13 × 13 · walls fill a whole tile</span></div>
+    </button>
+    <button class="pick" data-game="2">
+      <canvas width="66" height="66" data-prev="2"></canvas>
+      <div><b>Maze 2</b><span>9 × 9 · walls sit between tiles</span></div>
+    </button>
+  </div>
+  <p class="hint">The mouse always steps to its least-visited neighbour,
+    breaking ties down → right → left → up. Every escape is reproducible.</p>
+</section>
+
+<section id="game">
+  <div class="topline">
+    <button class="btn" id="back">← Menu</button>
+    <div class="bar" id="status">Build a maze, then release the mouse.</div>
+  </div>
+  <div class="stage">
+    <div class="boardwrap"><canvas id="board"></canvas></div>
+    <div class="side">
+      <button class="btn go" id="go">Release the mouse!</button>
+      <div class="readout locked" id="preview"><b>Locked</b><span>Turn counter</span></div>
+      <button class="btn" id="undo">Undo</button>
+      <button class="btn" id="reset">Reset</button>
+      <button class="btn" id="save">Save a maze</button>
+      <button class="btn" id="load">Load a maze</button>
+      <button class="btn" id="submit">Submit maze</button>
+      <button class="btn" id="share">Share game</button>
+      <button class="btn" id="awards">Awards</button>
+      <div class="speeds" id="speeds"></div>
+    </div>
+  </div>
+  <p class="hint" id="hint"></p>
+</section>
+
+<div class="veil" id="veil"><div class="sheet" id="sheet"></div></div>
+
+<script>
+/* inlined from sim.js by build.py */
+/* Mouse Maze - shared deterministic core.
+ *
+ * The same file runs in the browser and in Node, so the client and the future
+ * submission server score a maze with identical code. Nothing here touches the
+ * DOM or the network.
+ *
+ * Move counting convention (verified against the original game):
+ *   move 1        = entering the board from the entrance onto (0, cIn)
+ *   move k        = arriving on the k-th tile
+ *   final move    = leaving (N-1, cOut) through the exit
+ * so `moves` and `turns` are the same number. An empty 13x13 board with
+ * cIn == cOut scores 14; an empty 9x9 board scores 10.
+ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.MazeSim = api;
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var STEP_CAP = 99999999;
+
+  var GAMES = {
+    1: { size: 13, wallStyle: 'tile' },
+    2: { size: 9, wallStyle: 'edge' }
+  };
+
+  /* ---------------------------------------------------------------- specs */
+
+  // A spec is a plain object so it serialises straight to JSON for a request
+  // body:  { game, cIn, cOut, tiles:[i...] } or { game, cIn, cOut, v:[i...], h:[i...] }
+  function emptySpec(game) {
+    var s = { game: game, cIn: 0, cOut: 0 };
+    if (game === 1) s.tiles = [];
+    else { s.v = []; s.h = []; }
+    return s;
+  }
+
+  function sizeOf(game) { return GAMES[game].size; }
+
+  function cloneSpec(s) {
+    var c = { game: s.game, cIn: s.cIn, cOut: s.cOut };
+    if (s.game === 1) c.tiles = s.tiles.slice();
+    else { c.v = s.v.slice(); c.h = s.h.slice(); }
+    return c;
+  }
+
+  // Wall index helpers. Kept as functions so the packing is defined in one
+  // place and the serialiser, the editor and the simulator cannot drift.
+  function tileIdx(N, r, c) { return r * N + c; }              // game 1 walls
+  function vIdx(r, c) { return r * 8 + c; }                     // game 2, blocks (r,c)|(r,c+1)
+  function hIdx(r, c) { return r * 9 + c; }                     // game 2, blocks (r,c)|(r+1,c)
+
+  /* ------------------------------------------------------- blocking tests */
+
+  function makeBlocker(spec) {
+    var N = sizeOf(spec.game);
+    if (spec.game === 1) {
+      var wall = new Uint8Array(N * N);
+      for (var i = 0; i < spec.tiles.length; i++) wall[spec.tiles[i]] = 1;
+      // A tile wall is a property of the destination only.
+      return function (r, c, nr, nc) { return wall[nr * N + nc] === 1; };
+    }
+    var vw = new Uint8Array(9 * 8), hw = new Uint8Array(8 * 9);
+    for (var a = 0; a < spec.v.length; a++) vw[spec.v[a]] = 1;
+    for (var b = 0; b < spec.h.length; b++) hw[spec.h[b]] = 1;
+    return function (r, c, nr, nc) {
+      if (nr === r + 1) return hw[hIdx(r, c)] === 1;
+      if (nr === r - 1) return hw[hIdx(r - 1, c)] === 1;
+      if (nc === c + 1) return vw[vIdx(r, c)] === 1;
+      return vw[vIdx(r, c - 1)] === 1;
+    };
+  }
+
+  /* ------------------------------------------------------------ validity */
+
+  // Breadth-first search from the entrance tile to the exit tile. Reaching the
+  // exit is the whole legality requirement: if the exit is in the mouse's
+  // component it can never be trapped, because the tile it just came from is
+  // always a legal move back.
+  function validate(spec) {
+    var N = sizeOf(spec.game);
+    var start = tileIdx(N, 0, spec.cIn), goal = tileIdx(N, N - 1, spec.cOut);
+    var walled = null, i;
+    if (spec.game === 1) {
+      walled = new Uint8Array(N * N);
+      for (i = 0; i < spec.tiles.length; i++) walled[spec.tiles[i]] = 1;
+    }
+
+    // The search always runs to exhaustion rather than stopping at the exit,
+    // because the caller also paints the cells the mouse can never reach.
+    var seen = new Uint8Array(N * N);
+    var reason = null;
+    if (walled && walled[start]) {
+      reason = 'entranceBlocked';
+    } else {
+      var blocked = makeBlocker(spec);
+      var queue = [start];
+      seen[start] = 1;
+      for (var q = 0; q < queue.length; q++) {
+        var idx = queue[q], r = (idx / N) | 0, c = idx % N;
+        var cand = [[r + 1, c], [r, c + 1], [r, c - 1], [r - 1, c]];
+        for (var k = 0; k < 4; k++) {
+          var nr = cand[k][0], nc = cand[k][1];
+          if (nr < 0 || nr >= N || nc < 0 || nc >= N) continue;
+          var ni = nr * N + nc;
+          if (seen[ni]) continue;
+          if (blocked(r, c, nr, nc)) continue;
+          seen[ni] = 1;
+          queue.push(ni);
+        }
+      }
+      if (walled && walled[goal]) reason = 'exitBlocked';
+      else if (!seen[goal]) reason = 'exitUnreachable';
+    }
+    return { ok: reason === null, reason: reason, reachable: seen };
+  }
+
+  /* ------------------------------------------------------------ stepping */
+
+  // A run is advanced one move at a time so the animation never has to hold a
+  // path of millions of entries in memory. Counting the score to completion is
+  // the same object driven in a loop.
+  function createRun(spec) {
+    var N = sizeOf(spec.game);
+    var blocked = makeBlocker(spec);
+    var visits = new Int32Array(N * N);
+    var r = 0, c = spec.cIn;
+    var moves = 1;                       // entering the board is move 1
+    var done = false, escaped = false, stuck = false;
+    visits[tileIdx(N, r, c)] = 1;
+
+    function step() {
+      if (done) return false;
+      if (r === N - 1 && c === spec.cOut) {   // step out through the exit
+        moves++;
+        done = true; escaped = true;
+        return true;
+      }
+      var br = -1, bc = -1, bv = Infinity;
+      // Fixed tie-break order: down, right, left, up. Strict `<` keeps the
+      // first candidate seen, so the order alone resolves ties.
+      var cand = [[r + 1, c], [r, c + 1], [r, c - 1], [r - 1, c]];
+      for (var k = 0; k < 4; k++) {
+        var nr = cand[k][0], nc = cand[k][1];
+        if (nr < 0 || nr >= N || nc < 0 || nc >= N) continue;
+        if (blocked(r, c, nr, nc)) continue;
+        var v = visits[nr * N + nc];
+        if (v < bv) { bv = v; br = nr; bc = nc; }
+      }
+      if (br < 0) { done = true; stuck = true; return false; }
+      r = br; c = bc;
+      moves++;
+      visits[tileIdx(N, r, c)]++;
+      return true;
+    }
+
+    return {
+      size: N,
+      visits: visits,
+      step: step,
+      row: function () { return r; },
+      col: function () { return c; },
+      moves: function () { return moves; },
+      here: function () { return visits[tileIdx(N, r, c)]; },
+      isDone: function () { return done; },
+      isEscaped: function () { return escaped; },
+      isStuck: function () { return stuck; }
+    };
+  }
+
+  // Score a maze outright. This is the function the submission server calls.
+  function score(spec, cap) {
+    cap = cap || STEP_CAP;
+    var check = validate(spec);
+    if (!check.ok) return { ok: false, reason: check.reason, turns: 0 };
+    var run = createRun(spec);
+    while (!run.isDone() && run.moves() < cap) run.step();
+    var worst = 0, v = run.visits;
+    for (var i = 0; i < v.length; i++) if (v[i] > worst) worst = v[i];
+    if (!run.isEscaped()) {
+      // Termination is provable for a legal maze, so this branch means either a
+      // bug or a maze beyond the cap. Report it, never silently score it.
+      return { ok: true, capped: true, turns: cap, worst: worst, visits: v };
+    }
+    return { ok: true, capped: false, turns: run.moves(), worst: worst, visits: v };
+  }
+
+  /* ------------------------------------------------------- serialisation */
+
+  function packBits(list, len) {
+    var bytes = new Uint8Array((len + 7) >> 3);
+    for (var i = 0; i < list.length; i++) bytes[list[i] >> 3] |= 1 << (list[i] & 7);
+    var out = '';
+    for (var b = 0; b < bytes.length; b++) out += (bytes[b] < 16 ? '0' : '') + bytes[b].toString(16);
+    return out;
+  }
+
+  function unpackBits(hex, len) {
+    var list = [];
+    for (var i = 0; i < len; i++) {
+      var byte = parseInt(hex.substr((i >> 3) * 2, 2), 16) || 0;
+      if (byte & (1 << (i & 7))) list.push(i);
+    }
+    return list;
+  }
+
+  // Text form, safe to paste anywhere and stable enough to keep on a
+  // leaderboard row: MM1-<cIn><cOut>-<hex>  /  MM2-<cIn><cOut>-<hex>-<hex>
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  function encode(spec) {
+    // Columns run to 12, so they are fixed-width two digits. A single-digit
+    // field would make "1110" ambiguous between (11,10) and (1,1,10).
+    var head = 'MM' + spec.game + '-' + pad2(spec.cIn) + '-' + pad2(spec.cOut) + '-';
+    if (spec.game === 1) return head + packBits(spec.tiles, 169);
+    return head + packBits(spec.v, 72) + '-' + packBits(spec.h, 72);
+  }
+
+  function decode(text) {
+    var t = String(text).trim().toUpperCase().replace(/\s+/g, '');
+    var m = t.match(/^MM([12])-(\d\d)-(\d\d)-([0-9A-F]+)(?:-([0-9A-F]+))?$/);
+    if (!m) return null;
+    var game = parseInt(m[1], 10), N = sizeOf(game);
+    var cIn = parseInt(m[2], 10), cOut = parseInt(m[3], 10);
+    if (cIn >= N || cOut >= N) return null;
+    if (game === 1) {
+      if (m[5]) return null;
+      return { game: 1, cIn: cIn, cOut: cOut, tiles: unpackBits(m[4], 169) };
+    }
+    if (!m[5]) return null;
+    return { game: 2, cIn: cIn, cOut: cOut, v: unpackBits(m[4], 72), h: unpackBits(m[5], 72) };
+  }
+
+  return {
+    STEP_CAP: STEP_CAP,
+    GAMES: GAMES,
+    sizeOf: sizeOf,
+    emptySpec: emptySpec,
+    cloneSpec: cloneSpec,
+    tileIdx: tileIdx,
+    vIdx: vIdx,
+    hIdx: hIdx,
+    validate: validate,
+    createRun: createRun,
+    score: score,
+    encode: encode,
+    decode: decode
+  };
+});
+</script>
+<script>
+'use strict';
+if (!window.MazeSim) {
+  document.body.innerHTML =
+    '<div style="margin:auto;max-width:420px;padding:20px;text-align:center;'
+    + 'font:15px/1.5 system-ui,sans-serif;color:#f2f2f2">'
+    + '<b style="color:#e01b1b">sim.js did not load.</b><br><br>'
+    + 'Keep index.html and sim.js in the same folder, or open the single-file '
+    + 'build <code>mousemaze.html</code> instead.</div>';
+  throw new Error('MazeSim is missing');
+}
+const S = window.MazeSim;
+const $ = id => document.getElementById(id);
+
+/* ------------------------------------------------------------------ config
+ * Cut-lines and the speed ladder live here alone. Balancing is a data edit.
+ * The original game's default speed is 2.5 moves/sec; the ladder below climbs
+ * well past that, rising on move awards.
+ * 800 is a trophy with no speed reward, exactly as in the original.
+ */
+// Slot order is fixed: a locked rung keeps its place and simply shows nothing,
+// so a pad never moves under the player's finger. `ach` names the achievement
+// that opens it; null means always open.
+const LADDER = [
+  { v:2,    ach:'first'  },
+  { v:4,    ach:null     },
+  { v:7.5,  ach:'m400'   },
+  { v:20,   ach:'m1136'  },
+  { v:60,   ach:'m4000'  },
+  { v:200,  ach:'m20000' }        // m800 is a trophy with no speed attached
+];
+const CONFIG = {
+  1: { tileAwards:[10,20,50,250,1000], moveAwards:[400,800,1136,4000,20000], ladder:LADDER },
+  2: { tileAwards:[10,20,50,250,1000], moveAwards:[400,800,1136,4000,20000], ladder:LADDER }
+};
+
+// The always-open rung, and therefore the speed a fresh profile starts on.
+// Read from the ladder so rebalancing the block above stays a data-only edit.
+const BASE_LEVEL = 1;
+const BASE_SPEED = LADDER[BASE_LEVEL].v;
+
+/* Set this to the score server's origin, e.g. 'http://localhost:8787' while
+ * developing. Empty means no server yet, and Submit explains that instead of
+ * failing. The client posts the MAZE, never a score: the server decodes it,
+ * runs its own copy of sim.js and decides the number itself.
+ */
+// Leave API_OVERRIDE empty and the page talks to whatever server handed it out,
+// which is what happens when you open http://localhost:8787. Opened as a plain
+// file there is no server, and Submit says so instead of failing. Set the
+// override only when the game is hosted apart from its API.
+const API_OVERRIDE = '';
+const API_BASE = API_OVERRIDE ||
+  (location.protocol === 'http:' || location.protocol === 'https:' ? location.origin : '');
+const SUBMIT_COOLDOWN = 10000;
+let lastSubmit = 0;
+
+/* --------------------------------------------------------------- geometry */
+const GEO = {
+  1: { N:13, tile:30, gap:0,  bar:30 },
+  2: { N:9,  tile:33, gap:8,  bar:41 }   // bar == pitch, so markers sit flush
+};
+const geoW = g => { const G=GEO[g]; return G.N*G.tile + (G.N-1)*G.gap; };
+const geoH = g => geoW(g) + 2*GEO[g].bar;
+// top-left of the playfield inside the canvas
+const originY = g => GEO[g].bar;
+const cellXY = (g,i) => i*(GEO[g].tile+GEO[g].gap);
+
+/* ----------------------------------------------------------------- storage
+ * localStorage when self-hosted, Claude's artifact store when embedded,
+ * memory as a last resort. Progress must never be the reason a maze is lost.
+ */
+const Store = (() => {
+  const mem = {};
+  const hasLS = (() => { try { localStorage.setItem('_t','1'); localStorage.removeItem('_t'); return true; } catch(e){ return false; } })();
+  return {
+    async get(k){
+      if (hasLS) { const v = localStorage.getItem(k); return v==null?null:v; }
+      if (window.storage) { try { const r = await window.storage.get(k); return r?r.value:null; } catch(e){ return null; } }
+      return k in mem ? mem[k] : null;
+    },
+    async set(k,v){
+      if (hasLS) { try { localStorage.setItem(k,v); return; } catch(e){} }
+      if (window.storage) { try { await window.storage.set(k,v); return; } catch(e){} }
+      mem[k]=v;
+    }
+  };
+})();
+
+/* ---------------------------------------------------------------- progress */
+const P = { 1:{ach:{},best:0,bestWorst:0,spd:BASE_SPEED}, 2:{ach:{},best:0,bestWorst:0,spd:BASE_SPEED}, shared:false, nick:'', token:'' };
+
+async function loadProgress(){
+  for (const g of [1,2]) {
+    const raw = await Store.get('mm.progress.'+g);
+    if (raw) { try { const o = JSON.parse(raw);
+      P[g].ach = o.ach||{}; P[g].best = o.best||0;
+      P[g].bestWorst = o.bestWorst||0; P[g].spd = o.spd||BASE_SPEED; } catch(e){} }
+    // Invariant: the stored speed is always a value on an OPEN rung. A profile
+    // written by an older build can carry a value outside the open list (e.g.
+    // 2.5 after the ladder moved to 2/4/...), and a value outside the list gets
+    // re-projected every time the list grows; that projection shifting from 4
+    // to 2 on the first escape is exactly the "slow pad pressed itself" bug.
+    // Pin such a profile to what it already resolves to, once, on load.
+    const L = CONFIG[g].ladder, open = unlockedLevels(g);
+    if (!open.some(i => L[i].v === P[g].spd)) {
+      P[g].spd = L[currentLevel(g)].v;
+      saveProgress(g);                 // untouched on healthy profiles
+    }
+  }
+  P.shared = (await Store.get('mm.shared')) === '1';
+  P.nick = (await Store.get('mm.nick')) || '';
+  // Claims the nickname on the score server until real logins exist. Losing it
+  // means losing the name, which is exactly what an account will later fix.
+  P.token = (await Store.get('mm.token')) || '';
+}
+function saveProgress(g){ Store.set('mm.progress.'+g,
+  JSON.stringify({ach:P[g].ach, best:P[g].best, bestWorst:P[g].bestWorst, spd:P[g].spd})); }
+
+function unlockedLevels(g){
+  const L = CONFIG[g].ladder, out = [];
+  for (let i=0;i<L.length;i++) if (!L[i].ach || P[g].ach[L[i].ach]) out.push(i);
+  return out;
+}
+// Unlocking a rung never moves the selection. The only time the stored choice
+// is overridden is when a rebalanced cut-line locks a rung that used to be
+// open, and then it steps down to the nearest rung still available.
+function currentLevel(g){
+  // Invariant (established by loadProgress): P[g].spd is always the value of an
+  // open rung, so the exact-match loop below is the whole function in normal
+  // play. Selection therefore cannot move when the open list merely GROWS.
+  const L = CONFIG[g].ladder, up = unlockedLevels(g), want = P[g].spd;
+  for (const i of up) if (L[i].v === want) return i;
+  // Reachable only when a rung DISAPPEARS mid-session, i.e. a cut-line
+  // rebalance locks a rung the player had chosen. Fall back to the base rung,
+  // never to the slowest open one: dropping a player onto the slow pad because
+  // their saved data went bad is the worst possible guess.
+  let best = up.indexOf(BASE_LEVEL) >= 0 ? BASE_LEVEL : up[up.length-1];
+  if (typeof want === 'number' && isFinite(want)){
+    for (const i of up) if (L[i].v <= want && L[i].v > L[best].v) best = i;
+  }
+  return best;
+}
+function speedFor(g){ return CONFIG[g].ladder[currentLevel(g)].v; }
+
+/* ------------------------------------------------------------------ state */
+let game = 1;
+let spec = S.emptySpec(1);
+let history = [];           // encoded snapshots, so undo can never desync
+let run = null;             // active simulation stepper
+let reach = null;           // BFS result, so sealed-off cells can be bricked
+let phase = 'edit';         // edit | running | done
+let lastResult = null;
+let raf = 0, lastT = 0;
+let animFrom = {r:-1,c:0}, animTo = {r:0,c:0}, tprog = 0;   // animation trails the sim by one tile
+
+/* --------------------------------------------------------------- painting */
+const board = $('board'), ctx = board.getContext('2d');
+
+function sizeCanvas(cv, w, h){
+  const dpr = Math.min(3, window.devicePixelRatio||1);
+  cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  cv.style.aspectRatio = w+' / '+h;
+  const c = cv.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0);
+  c.imageSmoothingEnabled = false;
+  return c;
+}
+
+/* Brick and plank colours are sampled straight from the original: the mortar
+ * line is LIGHTER than the brick face, in both games and for both wall kinds.
+ * A cell the mouse can never reach gets the same masonry in ochre, so it reads
+ * as "sealed off" rather than as something the player built.
+ */
+const BRICK  = { face:'rgb(215,89,33)',  line:'rgb(228,157,125)' };
+const ORPHAN = { face:'rgb(184,142,54)', line:'rgb(219,196,148)' };
+const GUTTER = 'rgb(0,98,0)';        // the original's (0,68,0), lifted a little
+
+/* Visit-count ramp. Steps 0-6 are the original's exact shades, recovered from a
+ * screenshot as R=51+15v, G=204+3v. Above that the anchors are spaced by order
+ * of magnitude and interpolated in log space, so a colour means a specific
+ * visit count and stays comparable between one maze and the next.
+ */
+const HEAT = [
+  { v:6,    c:[141,222,0] },      // yellow-green, the original's last step
+  { v:10,   c:[176,227,0] },      // 연두
+  { v:100,  c:[250,240,0] },      // 노랑
+  { v:350,  c:[247,203,152] },    // the turn towards violet
+  { v:1000, c:[196,162,232] },    // 연보라
+  { v:5000, c:[18,18,26] }        // 검정
+];
+function heatColor(v){
+  if (v <= 6) return 'rgb('+(51+15*v)+','+(204+3*v)+',0)';
+  const last = HEAT[HEAT.length-1];
+  if (v >= last.v) return 'rgb('+last.c.join(',')+')';
+  for (let i=0;i<HEAT.length-1;i++){
+    const a = HEAT[i], b = HEAT[i+1];
+    if (v <= b.v){
+      const t = (Math.log(v)-Math.log(a.v))/(Math.log(b.v)-Math.log(a.v));
+      return 'rgb('+Math.round(a.c[0]+(b.c[0]-a.c[0])*t)+','
+                  + Math.round(a.c[1]+(b.c[1]-a.c[1])*t)+','
+                  + Math.round(a.c[2]+(b.c[2]-a.c[2])*t)+')';
+    }
+  }
+}
+
+// Running bond, clipped to the tile, so the offset course shows a half brick
+// on both ends instead of leaving bare mortar at the left.
+function drawBrick(c, x, y, T, pal){
+  c.save();
+  c.beginPath(); c.rect(x,y,T,T); c.clip();
+  c.fillStyle=pal.line; c.fillRect(x,y,T,T);
+  c.fillStyle=pal.face;
+  const bh = T/3, bw = T/2, m = Math.max(1.5, T/15);
+  for (let br=0;br<3;br++){
+    const off = (br % 2) ? -bw/2 : 0;
+    for (let k=-1;k<=2;k++)
+      c.fillRect(x+off+k*bw+m/2, y+br*bh+m/2, bw-m, bh-m);
+  }
+  c.restore();
+}
+
+// A plank fills its gutter and caps both ends with a right isosceles triangle,
+// giving the original's stubby hexagon. Two courses across the body echo the
+// brickwork without pretending to be bricks at this size.
+function drawPlank(c, x, y, w, len, vertical, pal){
+  const cap = w/2;
+  c.fillStyle = pal.face;
+  c.beginPath();
+  if (vertical){
+    c.moveTo(x, y); c.lineTo(x+w/2, y-cap); c.lineTo(x+w, y);
+    c.lineTo(x+w, y+len); c.lineTo(x+w/2, y+len+cap); c.lineTo(x, y+len);
+  } else {
+    c.moveTo(x, y); c.lineTo(x-cap, y+w/2); c.lineTo(x, y+w);
+    c.lineTo(x+len, y+w); c.lineTo(x+len+cap, y+w/2); c.lineTo(x+len, y);
+  }
+  c.closePath(); c.fill();
+  c.strokeStyle = pal.line; c.lineWidth = Math.max(1, w/7);
+  for (let k=1;k<=2;k++){
+    const d = len*k/3;
+    c.beginPath();
+    if (vertical){ c.moveTo(x, y+d); c.lineTo(x+w, y+d); }
+    else { c.moveTo(x+d, y); c.lineTo(x+d, y+w); }
+    c.stroke();
+  }
+}
+
+function drawMouse(c, x, y, s){
+  c.save(); c.translate(x,y);
+  c.fillStyle='#d8d8d8'; c.strokeStyle='#3a3a3a'; c.lineWidth=1;
+  c.beginPath(); c.arc(-s*0.26,-s*0.20,s*0.20,0,7); c.arc(s*0.26,-s*0.20,s*0.20,0,7); c.fill(); c.stroke();
+  c.beginPath(); c.arc(0,0,s*0.40,0,7); c.fill(); c.stroke();
+  c.fillStyle='#222';
+  c.beginPath(); c.arc(-s*0.15,-s*0.02,s*0.055,0,7); c.arc(s*0.15,-s*0.02,s*0.055,0,7); c.fill();
+  c.beginPath(); c.arc(0,s*0.17,s*0.05,0,7); c.fill();
+  c.restore();
+}
+
+function drawArrow(c, cx, cy, s, dir){
+  c.fillStyle='#1a1a1a';
+  c.beginPath();
+  c.moveTo(cx-s*0.28, cy-s*0.30*dir); c.lineTo(cx+s*0.28, cy-s*0.30*dir);
+  c.lineTo(cx+s*0.28, cy+s*0.02*dir); c.lineTo(cx+s*0.44, cy+s*0.02*dir);
+  c.lineTo(cx, cy+s*0.38*dir); c.lineTo(cx-s*0.44, cy+s*0.02*dir);
+  c.lineTo(cx-s*0.28, cy+s*0.02*dir);
+  c.closePath(); c.fill();
+}
+
+function paint(){
+  const G = GEO[game], N = G.N, T = G.tile, W = geoW(game), H = geoH(game);
+  const oy = originY(game), pitch = T + G.gap, pw = geoW(game);
+  const visits = run ? run.visits : null;
+
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  // In game 2 the space between tiles is dark grass, not a void.
+  if (game === 2){ ctx.fillStyle = GUTTER; ctx.fillRect(0, oy, pw, pw); }
+
+  const walled = game === 1 ? new Set(spec.tiles) : null;
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const idx = r*N+c, x = c*pitch, y = oy + r*pitch;
+    if (walled && walled.has(idx)){ drawBrick(ctx, x, y, T, BRICK); continue; }
+    if (reach && !reach[idx]){ drawBrick(ctx, x, y, T, ORPHAN); continue; }
+    ctx.fillStyle = visits ? heatColor(visits[idx]) : 'rgb(51,204,0)';
+    ctx.fillRect(x, y, T, T);
+  }
+
+  if (game === 2){
+    for (const i of spec.v){ const r=Math.floor(i/8), c=i%8;
+      drawPlank(ctx, c*pitch+T, oy+r*pitch, G.gap, T, true, BRICK); }
+    for (const i of spec.h){ const r=Math.floor(i/9), c=i%9;
+      drawPlank(ctx, c*pitch, oy+r*pitch+T, G.gap, T, false, BRICK); }
+  }
+
+  // entrance and exit markers sit in the black bars, outside the playfield.
+  // They are row -1 and row N of the same grid, so the mouse can walk onto
+  // them with the ordinary interpolation.
+  const inX = (game===1 ? cellXY(1,spec.cIn) : spec.cIn*pitch);
+  const outX = (game===1 ? cellXY(1,spec.cOut) : spec.cOut*pitch);
+  const inY = oy - pitch, outY = oy + N*pitch;   // row -1 and row N
+  ctx.fillStyle='rgb(51,204,0)';
+  ctx.fillRect(inX, inY, T, T);
+  ctx.fillRect(outX, outY, T, T);
+  drawArrow(ctx, inX+T/2, inY+T/2, T, 1);
+  if (!run || animTo.r < N) drawArrow(ctx, outX+T/2, outY+T/2, T, 1);
+
+  if (run) {
+    // One code path for every move, including stepping in from the entrance
+    // and stepping out through the exit.
+    const t = Math.max(0, Math.min(1, tprog));
+    const cx = (animFrom.c + (animTo.c - animFrom.c)*t)*pitch + T/2;
+    const cy = (animFrom.r + (animTo.r - animFrom.r)*t)*pitch + T/2;
+    drawMouse(ctx, cx, oy + cy, T);
+  }
+}
+
+/* ------------------------------------------------------------- speed pads
+ * Square pads, one per unlocked rung of the ladder. A locked rung is absent
+ * rather than dimmed, and the pads carry no visible caption or tooltip: the
+ * chevron count is the whole message. Exactly one is always pressed.
+ */
+function padIcon(slot){
+  let d;
+  if (slot === 0){
+    d = 'M11.4 1.5Q15.9 5 11.4 8.5';          // the slow rung: one round ")"
+  } else {
+    const cw = 4.6, x0 = (26 - slot*cw)/2;
+    d = '';
+    for (let i=0;i<slot;i++){
+      const x = x0 + i*cw;
+      d += 'M'+(x+0.7)+' 1.7L'+(x+3.5)+' 5L'+(x+0.7)+' 8.3';
+    }
+  }
+  return '<svg viewBox="0 0 26 10" width="100%" height="100%" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" '
+    + 'stroke-linejoin="round" aria-hidden="true"><path d="'+d+'"/></svg>';
+}
+
+function renderSpeeds(){
+  const box = $('speeds'), L = CONFIG[game].ladder, up = unlockedLevels(game);
+  const cur = currentLevel(game);
+  box.innerHTML = '';
+  for (let i=0;i<L.length;i++){
+    const open = up.indexOf(i) >= 0;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sp' + (open && i === cur ? ' on' : '');
+    b.innerHTML = padIcon(i);
+    if (open){
+      b.setAttribute('aria-label', L[i].v + ' moves per second');
+      b.setAttribute('aria-pressed', i === cur ? 'true' : 'false');
+      b.onclick = () => { P[game].spd = L[i].v; saveProgress(game); renderSpeeds(); };
+    } else {
+      // Hidden, not removed: the slot has to stay put so the open pads never
+      // shift position when something new unlocks.
+      b.style.visibility = 'hidden';
+      b.tabIndex = -1;
+      b.setAttribute('aria-hidden', 'true');
+    }
+    box.appendChild(b);
+  }
+}
+
+/* ----------------------------------------------------------------- status */
+function setStatus(t){ $('status').textContent = t; }
+
+function refresh(){
+  const check = S.validate(spec);
+  const ok = check.ok;
+  reach = check.reachable;
+  $('go').textContent = phase==='running' ? 'Stop the mouse'
+    : (ok ? 'Release the mouse!' : 'Release the mouse! ⚠️');
+  const idle = phase!=='running';
+  for (const id of ['reset','load','save','share','submit']) $(id).disabled = !idle;
+  $('undo').disabled = !idle || history.length===0;
+
+  const pv = $('preview');
+  if (!P.shared) {
+    pv.className='readout locked';
+    pv.innerHTML='<b>Locked</b><span>Share to unlock</span>';
+  } else if (!ok) {
+    pv.className='readout locked';
+    pv.innerHTML='<b>No exit</b><span>Turn counter</span>';
+  } else {
+    const res = S.score(spec);
+    pv.className='readout';
+    pv.innerHTML='<b>'+res.turns.toLocaleString()+'</b><span>Turns'+(res.capped?' (capped)':'')+'</span>';
+  }
+
+  renderSpeeds();
+  $('hint').textContent = phase!=='edit' ? '' : (game===1
+    ? 'Click a tile to lay a brick. Click the black bar above or below to move the entrance or the exit.'
+    : 'Click the gap between two tiles to drop a plank. Click the black bar above or below to move the entrance or the exit.');
+  paint();
+}
+
+/* ------------------------------------------------------------------ edits */
+function pushHistory(){ history.push(S.encode(spec)); if (history.length>400) history.shift(); }
+
+function toggleIn(list, idx){
+  const i = list.indexOf(idx);
+  if (i<0) list.push(idx); else list.splice(i,1);
+  list.sort((a,b)=>a-b);
+}
+
+function boardPoint(ev){
+  const rc = board.getBoundingClientRect();
+  const W = geoW(game), H = geoH(game);
+  return { x:(ev.clientX-rc.left)*(W/rc.width), y:(ev.clientY-rc.top)*(H/rc.height) };
+}
+
+function onBoard(ev){
+  if (phase==='running') return;
+  if (phase==='done'){ run=null; lastResult=null; phase='edit'; }   // editing resumes on touch
+  const G=GEO[game], N=G.N, T=G.tile, pitch=T+G.gap, oy=originY(game), pw=geoW(game);
+  const {x,y} = boardPoint(ev);
+  const col = Math.max(0, Math.min(N-1, Math.floor(x/pitch)));
+
+  // Moving a marker never clears a brick. Landing on one simply leaves the
+  // maze unsolvable, which the warning on the release button already says.
+  if (y < oy){ pushHistory(); spec.cIn = col; return refresh(); }
+  if (y > oy+pw){ pushHistory(); spec.cOut = col; return refresh(); }
+
+  const by = y - oy;
+  if (game===1){
+    const row = Math.max(0, Math.min(N-1, Math.floor(by/pitch)));
+    pushHistory(); toggleIn(spec.tiles, S.tileIdx(N,row,col)); return refresh();
+  }
+
+  // Game 2: walls live on edges. Generous hit radius so a fingertip works.
+  const TOL = 13;
+  const fx = x % pitch, fy = by % pitch;
+  const gi = Math.floor(x/pitch), gj = Math.floor(by/pitch);
+  const dv = Math.min(Math.abs(fx-(T+G.gap/2)), Math.abs(fx+G.gap/2));  // to a vertical gutter
+  const dh = Math.min(Math.abs(fy-(T+G.gap/2)), Math.abs(fy+G.gap/2));
+  const vAfter = fx > T/2, hAfter = fy > T/2;
+  const vi = vAfter ? gi : gi-1, hj = hAfter ? gj : gj-1;
+  const row = Math.max(0, Math.min(N-1, gj)), colc = Math.max(0, Math.min(N-1, gi));
+
+  if (dv <= dh && dv <= TOL && vi>=0 && vi<=7){
+    pushHistory(); toggleIn(spec.v, S.vIdx(row, vi)); return refresh();
+  }
+  if (dh < dv && dh <= TOL && hj>=0 && hj<=7){
+    pushHistory(); toggleIn(spec.h, S.hIdx(hj, colc)); return refresh();
+  }
+  setStatus('Aim for the gap between two tiles.');
+}
+
+/* -------------------------------------------------------------- the run */
+function award(g, id, label){
+  if (P[g].ach[id]) return null;
+  P[g].ach[id] = 1; saveProgress(g); return label;
+}
+
+function stopRun(){ cancelAnimationFrame(raf); raf=0; }
+
+function startRun(){
+  const check = S.validate(spec);
+  if (!check.ok){
+    setStatus(check.reason==='entranceBlocked' ? "I can't even get in — the entrance tile is bricked up."
+      : check.reason==='exitBlocked' ? "I can't get out — the exit tile is bricked up."
+      : "I can't get through this maze! There's no way from the entrance to the exit.");
+    return;
+  }
+  history = [];
+  run = S.createRun(spec);
+  lastResult = null;
+  // Move 1 is the step in from the entrance, so that is where the walk starts.
+  animFrom = {r:-1, c:spec.cIn}; animTo = {r:0, c:spec.cIn};
+  phase = 'running'; tprog = 0; lastT = performance.now();
+  refresh();
+  tick(lastT);
+}
+
+function finishRun(){
+  phase = 'done';
+  let worst = 0;
+  for (let i=0;i<run.visits.length;i++) if (run.visits[i]>worst) worst = run.visits[i];
+  const turns = run.moves();
+  lastResult = { turns, worst };
+
+  const won = [];
+  const push = l => { if (l) won.push(l); };
+  push(award(game,'first','Your first escape'));
+  for (const n of CONFIG[game].tileAwards) if (worst>=n) push(award(game,'t'+n,'Same tile '+n+' times'));
+  for (const n of CONFIG[game].moveAwards) if (turns>=n) push(award(game,'m'+n,n.toLocaleString()+' moves'));
+  if (turns > P[game].best) P[game].best = turns;
+  if (worst > P[game].bestWorst) P[game].bestWorst = worst;
+  saveProgress(game);
+
+  setStatus('I spent '+turns.toLocaleString()+' turns in the maze. I visited my worst tile '+worst.toLocaleString()+' times.'
+    + (won.length ? '  ★ ' + won.join(' · ') : ''));
+  refresh();
+}
+
+function tick(now){
+  raf = requestAnimationFrame(tick);
+  // A backgrounded tab must not fast-forward the mouse, so the frame delta is
+  // clamped rather than banked.
+  const dt = Math.min(0.25, (now - lastT) / 1000);
+  lastT = now;
+  tprog += dt * speedFor(game);
+  const N = S.sizeOf(game);
+  let guard = 0;
+  while (tprog >= 1){
+    if (run.isDone()){ tprog = 1; break; }   // the last leg is the exit itself
+    tprog -= 1;
+    animFrom = animTo;
+    run.step();
+    animTo = run.isEscaped() ? {r:N, c:spec.cOut} : {r:run.row(), c:run.col()};
+    if (++guard > 20000){ tprog = 0.999; break; }
+  }
+  if (run.isDone() && tprog >= 1){
+    paint();                                  // land the mouse before reporting
+    stopRun();
+    if (run.isEscaped()) return finishRun();
+    phase='done'; setStatus('The mouse is boxed in with nowhere to step.'); return refresh();
+  }
+  setStatus('I have spent '+run.moves().toLocaleString()+' turns in this maze. I have been here '
+    + (run.here()-1).toLocaleString() + ' times before.');
+  paint();
+}
+
+/* ----------------------------------------------------------------- modals */
+function openSheet(html){ $('sheet').innerHTML = html; $('veil').classList.add('on'); }
+function closeSheet(){ $('veil').classList.remove('on'); }
+$('veil').addEventListener('click', e => { if (e.target===$('veil')) closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeSheet(); });
+
+function sheetSave(){
+  openSheet('<h2>Save a maze</h2><p>Copy this code. Paste it back under Load a maze.</p>'
+    + '<textarea id="mzcode" readonly>'+S.encode(spec)+'</textarea>'
+    + '<div class="row"><button class="btn" id="mzcopy">Copy</button>'
+    + '<button class="btn" id="mzclose">Close</button></div>');
+  $('mzcopy').onclick = async () => {
+    const t = $('mzcode'); t.select();
+    try { await navigator.clipboard.writeText(t.value); $('mzcopy').textContent='Copied'; }
+    catch(e){ document.execCommand('copy'); $('mzcopy').textContent='Copied'; }
+  };
+  $('mzclose').onclick = closeSheet;
+}
+
+function sheetLoad(){
+  openSheet('<h2>Load a maze</h2><p>Paste a maze code.</p>'
+    + '<textarea id="mzin" placeholder="MM1-00-00-..."></textarea>'
+    + '<p id="mzerr" style="color:var(--red)"></p>'
+    + '<div class="row"><button class="btn" id="mzok">Load</button>'
+    + '<button class="btn" id="mzclose">Close</button></div>');
+  $('mzclose').onclick = closeSheet;
+  $('mzok').onclick = () => {
+    const got = S.decode($('mzin').value);
+    if (!got) return $('mzerr').textContent = "That code doesn't parse. It should start with MM1- or MM2-.";
+    if (got.game !== game) return $('mzerr').textContent = 'That code is for Maze '+got.game+'. Open Maze '+got.game+' to load it.';
+    pushHistory(); spec = got; closeSheet(); phase='edit'; run=null; lastResult=null;
+    setStatus('Maze loaded.'); refresh();
+  };
+}
+
+function sheetSubmit(){
+  const check = S.validate(spec);
+  if (!check.ok){
+    setStatus("There is no route from the entrance to the exit, so there is nothing to submit yet.");
+    return;
+  }
+  const code = S.encode(spec);
+
+  if (!API_BASE){
+    openSheet('<h2>Submit maze</h2>'
+      + '<p>No score server is connected yet. Once one is running, set API_BASE near the '
+      + 'top of the script and this button will send the maze straight to it.</p>'
+      + '<p>Keep the code below in the meantime. A maze is all a submission needs, so '
+      + 'nothing about this layout is lost.</p>'
+      + '<textarea id="mzcode" readonly>'+code+'</textarea>'
+      + '<div class="row"><button class="btn" id="mzcopy">Copy</button>'
+      + '<button class="btn" id="mzclose">Close</button></div>');
+    $('mzcopy').onclick = async () => {
+      const t = $('mzcode'); t.select();
+      try { await navigator.clipboard.writeText(t.value); } catch(e){ document.execCommand('copy'); }
+      $('mzcopy').textContent = 'Copied';
+    };
+    $('mzclose').onclick = closeSheet;
+    return;
+  }
+
+  openSheet('<h2>Submit maze</h2>'
+    + '<p>The server re-runs this maze and decides the score itself.</p>'
+    + '<p style="color:var(--ink)">Nickname</p>'
+    + '<textarea id="mznick" style="height:38px">'+P.nick+'</textarea>'
+    + '<p id="mzerr" style="color:var(--red)"></p>'
+    + '<div class="row"><button class="btn" id="mzgo">Submit</button>'
+    + '<button class="btn" id="mzclose">Close</button></div>');
+  $('mzclose').onclick = closeSheet;
+  $('mzgo').onclick = async () => {
+    const nick = $('mznick').value.trim();
+    if (!nick) return $('mzerr').textContent = 'Pick a nickname first.';
+    const wait = SUBMIT_COOLDOWN - (Date.now() - lastSubmit);
+    if (wait > 0) return $('mzerr').textContent = 'Wait ' + Math.ceil(wait/1000) + 's before submitting again.';
+    $('mzgo').disabled = true; $('mzerr').textContent = 'Sending...';
+    P.nick = nick; Store.set('mm.nick', nick);
+    try {
+      const res = await fetch(API_BASE + '/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: nick, maze: code, token: P.token || undefined })
+      });
+      const data = await res.json();
+      lastSubmit = Date.now();
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      if (data.token && data.token !== P.token){ P.token = data.token; Store.set('mm.token', data.token); }
+      const rank = data.rankCapped ? '1,000,000+' : Number(data.rank).toLocaleString();
+      setStatus(data.duplicate
+        ? 'Already on the board: ' + Number(data.turns).toLocaleString() + ' turns, rank ' + rank + '.'
+        : 'Registered: ' + Number(data.turns).toLocaleString() + ' turns, rank ' + rank + '.');
+      closeSheet();
+      refresh();
+    } catch (err) {
+      $('mzgo').disabled = false;
+      $('mzerr').textContent = 'Could not reach the server: ' + err.message;
+    }
+  };
+}
+
+async function doShare(){
+  const url = location.href.split('#')[0];
+  let done = false;
+  try { await navigator.clipboard.writeText(url); done = true; } catch(e){}
+  if (!done && navigator.share) { try { await navigator.share({url}); done = true; } catch(e){} }
+  P.shared = true; await Store.set('mm.shared','1');
+  for (const g of [1,2]) award(g,'share','Shared the game');
+  setStatus(done ? 'Link copied. The turn counter is unlocked in both games.'
+                 : "Copy this page's address to share it. The turn counter is unlocked in both games.");
+  refresh();
+}
+
+function sheetAwards(){
+  const C = CONFIG[game];
+  // Row 1 is the move ladder, row 2 the same-tile ladder, row 3 the two
+  // one-offs. Twelve entries in a five-wide grid leaves the last row short,
+  // which is the intent: no empty boxes.
+  const defs = C.moveAwards.map(n=>({id:'m'+n, t:n.toLocaleString()+'<br>moves'}))
+    .concat(C.tileAwards.map(n=>({id:'t'+n, t:'Same tile<br>'+n+'×'})))
+    .concat([{id:'first', t:'First escape'}, {id:'share', t:'Shared the game'}]);
+  const cells = defs.map(d =>
+    '<div class="tro'+(P[game].ach[d.id]?' got':'')+'">'+d.t+'</div>').join('');
+  openSheet('<h2>Achievements</h2><div class="trophies">'+cells+'</div>'
+    + '<div class="trolabel">Mouse Maze '+game+' · Best '+P[game].best.toLocaleString()
+    + ' turns · Same tile '+P[game].bestWorst.toLocaleString()+' times</div>'
+    + '<button class="btn" id="mzclose">Close</button>');
+  $('mzclose').onclick = closeSheet;
+}
+
+/* ---------------------------------------------------------------- wiring */
+function openGame(g){
+  game = g; spec = S.emptySpec(g); history = []; run = null; lastResult = null; phase='edit';
+  $('title').style.display='none'; $('game').classList.add('on');
+  sizeCanvas(board, geoW(g), geoH(g));
+  setStatus('Build a maze, then release the mouse.');
+  refresh();
+}
+
+document.querySelectorAll('.pick').forEach(b =>
+  b.addEventListener('click', () => openGame(+b.dataset.game)));
+
+$('back').onclick = () => { stopRun(); run=null; phase='edit';
+  $('game').classList.remove('on'); $('title').style.display=''; };
+$('go').onclick = () => {
+  if (phase==='running'){ stopRun(); phase='done';
+    setStatus('Stopped after '+run.moves().toLocaleString()+' turns. Reset to build again.'); return refresh(); }
+  if (phase==='done'){ run=null; lastResult=null; phase='edit'; }
+  startRun();
+};
+$('undo').onclick = () => { const p = history.pop(); if (!p) return;
+  spec = S.decode(p); run=null; lastResult=null; phase='edit';
+  setStatus('Undone.'); refresh(); };
+$('reset').onclick = () => { pushHistory(); spec = S.emptySpec(game); run=null; lastResult=null;
+  phase='edit'; setStatus('Board cleared.'); refresh(); };
+$('save').onclick = sheetSave;
+$('load').onclick = sheetLoad;
+$('submit').onclick = sheetSubmit;
+$('share').onclick = doShare;
+$('awards').onclick = sheetAwards;
+board.addEventListener('click', onBoard);
+window.addEventListener('resize', () => { if ($('game').classList.contains('on')) paint(); });
+
+/* title-screen previews */
+document.querySelectorAll('[data-prev]').forEach(cv => {
+  const g = +cv.dataset.prev, N = S.sizeOf(g), c = cv.getContext('2d'), t = 66/N;
+  c.fillStyle='#000'; c.fillRect(0,0,66,66);
+  if (g===2){ c.fillStyle=GUTTER; c.fillRect(0,0,66,66); }
+  for (let r=0;r<N;r++) for (let k=0;k<N;k++){
+    c.fillStyle='rgb(51,204,0)';
+    c.fillRect(k*t+(g===2?0.5:0), r*t+(g===2?0.5:0), t-(g===2?1:0.4), t-(g===2?1:0.4));
+  }
+  if (g===1){ c.fillStyle='rgb(215,89,33)';
+    [[2,3],[4,5],[6,3],[8,5],[10,3]].forEach(([r,k])=>c.fillRect(k*t,r*t,t,t)); }
+  else { c.fillStyle='rgb(215,89,33)';
+    [[2,3],[4,5],[6,2]].forEach(([r,k])=>c.fillRect(k*t+t-1.5,r*t+1,2.5,t-2)); }
+});
+
+loadProgress().then(() => { if ($('game').classList.contains('on')) refresh(); });
+</script>
+</body>
+</html>

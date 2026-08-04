@@ -1,15 +1,3 @@
-메모)
-
-resource 폴더에 유용한 파일들을 가져다 놓았다. 이들은 파일을 옮겨서 사용하는데 쓰이거나, 혹은 읽기자료로 사용될 것이다.
-
-현재는 index 에 있는 미로가 작동하지만, 기록 서브밋은 되지 않는다.
-
-handoff 를 읽고, 내가 하려고 했던 로컬 서버 이해하기가 뭐였는지 파악하시오.
-
-
-
-
-
 # HANDOFF.md - Mouse Maze 프로젝트 인수인계
 
 Claude.ai 대화에서 개발하던 것을 Claude Code로 옮기는 시점의 문서.
@@ -42,8 +30,6 @@ Claude.ai 대화에서 개발하던 것을 Claude Code로 옮기는 시점의 �
 |---|---|
 | `sim.js` | 규칙 엔진. 시뮬레이터, BFS 검증, 미로 직렬화(encode/decode). 브라우저와 Node 공용. **규칙의 유일한 원본** |
 | `index.html` | 게임 전체 (UI + 인라인 스크립트). `<script src="sim.js">`로 로드 |
-| `mousemaze.html` | 위 둘을 합친 단일 파일 빌드. **직접 편집 금지**, `build.py`가 생성 |
-| `build.py` | `index.html`에 `sim.js`를 인라인해 `mousemaze.html` 생성. index나 sim을 고치면 실행할 것 |
 | `server/server.js` | 점수 서버. 제출 접수, 재시뮬레이션, 순위. 게임 페이지도 같이 서빙 |
 | `server/db.js` | SQLite 스키마와 질의 (node:sqlite, 의존성 0) |
 | `server/verify-all.js` | 저장된 모든 기록을 미로에서 재계산해 대조하는 CLI |
@@ -52,34 +38,37 @@ Claude.ai 대화에서 개발하던 것을 Claude Code로 옮기는 시점의 �
 ### 테스트 (전부 통과 상태로 인계)
 | 파일 | 검증 대상 |
 |---|---|
-| `test-sim.js` | 앵커(빈판 14/10, 원작 스크린샷 443턴 + 히트맵 169칸), 무작위 2400판 파이썬 대조, 직렬화 왕복 |
-| `ref_cases.json`, `gen_ref.py` | 위 대조용 레퍼런스 케이스와 생성기 (파이썬 구현이 ground truth) |
-| `test-hit.js` | Maze 2 모서리 클릭 판정을 전 픽셀 스윕 |
-| `test-ui.js` | index.html에서 실제 함수/CSS를 추출해 검증. 히트맵 색, 속도 사다리, 잠금 불변조건, 선언 안 된 상수 린트 등 |
-| `test-page.js` | 스텁 DOM으로 페이지 전체를 헤드리스 실행. "느림 버튼 자동 선택" 버그의 회귀 테스트 포함 |
+| `tests/test-sim.js` | 앵커(빈판 14/10, 원작 스크린샷 443턴 + 히트맵 169칸), 무작위 2400판 파이썬 대조, 직렬화 왕복 |
+| `tests/ref_cases.json`, `tests/gen_ref.py` | 위 대조용 레퍼런스 케이스와 생성기 (파이썬 구현이 ground truth) |
+| `tests/test-hit.js` | Maze 2 모서리 클릭 판정을 전 픽셀 스윕 |
+| `tests/test-ui.js` | index.html에서 실제 함수/CSS를 추출해 검증. 히트맵 색, 속도 사다리, 잠금 불변조건, 선언 안 된 상수 린트 등 |
+| `tests/test-page.js` | 스텁 DOM으로 페이지 전체를 헤드리스 실행. "느림 버튼 자동 선택" 버그의 회귀 테스트 포함 |
 | `server/test-server.js` | 실제 HTTP로 서버 검증. 점수 무시, 닉네임 토큰, 쿨다운 잠금 공격, 동점 순위, 미로 비노출 |
 
 ### 문서
 - `game-ui-taste.md`: 사용자의 UI 취향 명세. **모든 UI 작업 전 필독.**
   수정 지시가 나올 때마다 이 문서에 한 줄씩 추가하는 습관을 들일 것.
+  위치는 이 레포 밖: `/Users/violet/Documents/GitHub/Life-with-Claude-Code/claude-config/docs/game-ui-taste.md`
 
 ## 실행 방법
 
 Node 22+ 필요. npm 설치 없음 (node:http, node:sqlite만 사용).
 
+모든 커맨드는 `mouse_maze/`에서 실행한다.
+
 ```
 node server/server.js        # http://localhost:8787 이 게임
 node server/verify-all.js    # 전체 기록 재검증
-python3 build.py             # index.html 수정 후 단일파일 재생성
 ```
 
 테스트 일괄 실행:
 ```
-node test-sim.js && node test-hit.js && node test-ui.js && node test-page.js && node server/test-server.js
+node tests/test-sim.js && node tests/test-hit.js && node tests/test-ui.js && node tests/test-page.js && node server/test-server.js
 ```
 
-정적 배포만 원하면 `index.html`+`sim.js`를 GitHub Pages에 (또는
-`mousemaze.html` 하나를 index.html로 개명해서). 단 Submit은 서버 필요.
+이 폴더가 GitHub Pages 배포본이다. `index.html`+`sim.js`를 커밋하면 그대로
+정적 배포된다. 단 Submit은 서버가 필요하며, 프론트와 API가 다른 origin이면
+index.html 상단 `API_OVERRIDE`에 API 주소를 넣는다.
 
 ## 현재 상태
 

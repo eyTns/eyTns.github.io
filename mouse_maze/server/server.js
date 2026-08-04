@@ -65,8 +65,7 @@ const ROOT = path.join(__dirname, '..');
 const PUBLIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
-  '/sim.js': ['sim.js', 'text/javascript; charset=utf-8'],
-  '/mousemaze.html': ['mousemaze.html', 'text/html; charset=utf-8']
+  '/sim.js': ['sim.js', 'text/javascript; charset=utf-8']
 };
 
 function serveStatic(res, pathname) {

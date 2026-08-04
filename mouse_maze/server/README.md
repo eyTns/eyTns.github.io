@@ -12,7 +12,8 @@ Needs Node 22 or newer.
 node server/server.js
 ```
 
-Then open **http://localhost:8787** in a browser. That is the game.
+Run it from the `mouse_maze` folder. Then open **http://localhost:8787** in a
+browser. That is the game.
 
 The server hands out the page as well as the API, so both live on one origin and
 there is nothing to configure. Opening `index.html` as a file instead also works
@@ -21,8 +22,8 @@ for playing, but Submit needs the server, so use the address above.
 The database is a single file, `server/scores.db`. Copy it to back up. Delete it
 to start over. `MM_DB=/somewhere/else.db node server/server.js` moves it.
 
-Only `index.html`, `sim.js` and `mousemaze.html` are served. The database and the
-server's own source are not reachable over HTTP.
+Only `index.html` and `sim.js` are served. The database and the server's own
+source are not reachable over HTTP.
 
 If the game is ever hosted apart from its API, set `API_OVERRIDE` near the top of
 the script in `index.html` to the API's address.

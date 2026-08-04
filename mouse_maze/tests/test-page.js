@@ -102,8 +102,8 @@ const seed = process.argv[2];
 if (seed) { lsMap.set('mm.progress.1', seed); lsMap.set('mm.progress.2', seed); }
 
 /* --------------------------------------------------------- run the page */
-global.MazeSim = require('./sim.js');
-const html = fs.readFileSync('index.html', 'utf8');
+global.MazeSim = require('../sim.js');
+const html = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
 const script = html.match(/<script>\n([\s\S]*)\n<\/script>/)[1];
 eval(script);
 

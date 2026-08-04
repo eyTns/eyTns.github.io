@@ -1,4 +1,4 @@
-const S = require('./sim.js');
+const S = require('../sim.js');
 const cases = require('./ref_cases.json');
 let fail = 0;
 const check = (name, got, want) => {

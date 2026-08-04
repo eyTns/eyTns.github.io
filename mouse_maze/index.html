@@ -92,14 +92,14 @@
   .veil{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;
     align-items:center;justify-content:center;padding:14px;z-index:20}
   .veil.on{display:flex}
-  .sheet{background:var(--chrome);border:3px solid var(--red);padding:16px;
+  .sheet{background:var(--chrome);border:3px solid #f5c542;padding:16px;
     width:100%;max-width:420px;max-height:90dvh;overflow:auto}
   .sheet h2{margin:0 0 12px;text-align:center;font-size:22px;
     color:#f5c542;letter-spacing:.06em}
   .sheet p{font-size:13px;color:var(--ink-dim);margin:0 0 8px;line-height:1.35}
   .sheet textarea{width:100%;height:80px;background:#000;color:var(--grass);
     border:2px solid var(--chrome-lo);font-family:ui-monospace,monospace;font-size:12px;
-    padding:8px;resize:vertical;letter-spacing:0}
+    padding:8px;resize:none;letter-spacing:0}
   .sheet .row{display:flex;gap:8px;margin-top:10px}
   .trophies{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
   .tro{aspect-ratio:1;background:#111;border:2px solid #5a4a20;display:flex;
@@ -142,7 +142,7 @@
       <button class="btn" id="reset">Reset</button>
       <button class="btn" id="save">Save a maze</button>
       <button class="btn" id="load">Load a maze</button>
-      <button class="btn" id="submit">Submit maze</button>
+      <button class="btn" id="submit">Submit</button>
       <button class="btn" id="share">Share game</button>
       <button class="btn" id="awards">Awards</button>
       <div class="speeds" id="speeds"></div>
@@ -676,10 +676,11 @@ function tick(now){
 }
 
 /* ----------------------------------------------------------------- modals */
-function openSheet(html){ $('sheet').innerHTML = html; $('veil').classList.add('on'); }
+let sheetLocked = false;
+function openSheet(html, locked){ sheetLocked = !!locked; $('sheet').innerHTML = html; $('veil').classList.add('on'); }
 function closeSheet(){ $('veil').classList.remove('on'); }
-$('veil').addEventListener('click', e => { if (e.target===$('veil')) closeSheet(); });
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeSheet(); });
+$('veil').addEventListener('click', e => { if (e.target===$('veil') && !sheetLocked) closeSheet(); });
+document.addEventListener('keydown', e => { if (e.key==='Escape' && !sheetLocked) closeSheet(); });
 
 function sheetSave(){
   openSheet('<h2>Save a maze</h2><p>Copy this code. Paste it back under Load a maze.</p>'
@@ -737,12 +738,11 @@ function sheetSubmit(){
   }
 
   openSheet('<h2>Submit maze</h2>'
-    + '<p>The server re-runs this maze and decides the score itself.</p>'
     + '<p style="color:var(--ink)">Nickname</p>'
-    + '<textarea id="mznick" style="height:38px">'+P.nick+'</textarea>'
+    + '<textarea id="mznick" style="height:38px;color:var(--ink)">'+P.nick+'</textarea>'
     + '<p id="mzerr" style="color:var(--red)"></p>'
     + '<div class="row"><button class="btn" id="mzgo">Submit</button>'
-    + '<button class="btn" id="mzclose">Close</button></div>');
+    + '<button class="btn" id="mzclose">Close</button></div>', true);
   $('mzclose').onclick = closeSheet;
   $('mzgo').onclick = async () => {
     const nick = $('mznick').value.trim();
@@ -764,7 +764,7 @@ function sheetSubmit(){
       const rank = data.rankCapped ? '1,000,000+' : Number(data.rank).toLocaleString();
       setStatus(data.duplicate
         ? 'Already on the board: ' + Number(data.turns).toLocaleString() + ' turns, rank ' + rank + '.'
-        : 'Registered: ' + Number(data.turns).toLocaleString() + ' turns, rank ' + rank + '.');
+        : 'Score submitted - ' + Number(data.turns).toLocaleString() + ' Turns - Rank ' + rank);
       closeSheet();
       refresh();
     } catch (err) {

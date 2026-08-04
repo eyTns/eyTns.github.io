@@ -1,7 +1,7 @@
 // Pulls the real functions out of index.html and exercises them, so these
 // checks cannot drift from the shipped code.
 const fs = require('fs');
-const html = fs.readFileSync('index.html','utf8');
+const html = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'),'utf8');
 const grab = (name, re) => { const m = html.match(re); if (!m) throw new Error('missing '+name); return m[0]; };
 
 var P;

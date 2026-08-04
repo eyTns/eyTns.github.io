@@ -53,10 +53,12 @@ const SEALED = S.encode({ game:1, cIn:0, cOut:5, tiles:[S.tileIdx(13,0,1), S.til
   res = await post('/api/submit', { nickname: 'someone', maze: EMPTY1 });
   t('다른 사람은 자기 닉네임으로 제출 가능', res.status === 200 && res.body.turns === 14, res.body);
   t('낮은 점수는 2위', res.body.rank === 2, res.body);
+  const someoneToken = res.body.token;
 
-  // per-game boards are separate
-  res = await post('/api/submit', { nickname: 'someone', maze: EMPTY2, token: res.body.token });
+  // per-game boards live in separate databases
+  res = await post('/api/submit', { nickname: 'someone', maze: EMPTY2, token: someoneToken });
   t('2탄은 별도 판이라 1위', res.status === 200 && res.body.game === 2 && res.body.rank === 1, res.body);
+  t('토큰 하나가 두 게임에서 통함', res.body.token === someoneToken, res.body);
 
   // illegal maze is refused before anything is stored
   res = await post('/api/submit', { nickname: 'nope', maze: SEALED });

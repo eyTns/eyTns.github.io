@@ -219,7 +219,7 @@ function handleRank(res, url) {
 function handleMe(res, url) {
   const { nick, error } = cleanNick(url.searchParams.get('nickname'));
   if (error) return send(res, 400, { error });
-  const found = store.q.findSubmitter.get(nick);
+  const found = store.shared.findSubmitter.get(nick);
   if (!found) return send(res, 404, { error: 'No submissions under that nickname yet.' });
 
   const games = [1, 2].map(game => {

@@ -22,6 +22,10 @@ for playing, but Submit needs the server, so use the address above.
 The database is a single file, `server/scores.db`. Copy it to back up. Delete it
 to start over. `MM_DB=/somewhere/else.db node server/server.js` moves it.
 
+Inside it, each game has its own pair of tables (`scores_mm1`/`scores_mm2` and
+their rank rollups), so the two boards cannot mix. The `submitters` table is
+shared: one nickname and one token cover both games.
+
 Only `index.html` and `sim.js` are served. The database and the server's own
 source are not reachable over HTTP.
 
@@ -97,7 +101,8 @@ first time someone renames themselves. With the indirection, a rename is one
 `UPDATE` and the whole board follows. When logins arrive, fill in
 `submitters.user_id` and nothing else has to move.
 
-**`UNIQUE(game, submitter_id, turns)`** is the "same nickname, same score" rule.
+**`UNIQUE(submitter_id, turns)`** on each game's table is the "same nickname,
+same score" rule.
 A repeat submission finds the original row and reports it instead of adding a
 second one. Two different mazes with the same score from the same player collapse
 into one row; that is intended.

@@ -21,7 +21,7 @@ const PORT = Number(process.env.PORT || 8787);
 const cooldownMs = () => Number(process.env.MM_COOLDOWN_MS ?? 10000);
 const IP_WINDOW_MS = 60000, IP_MAX = 6;    // stops one address minting nicknames
 const RANK_CEILING = 1000000;              // past this the client shows 1,000,000+
-const NICK_MAX = 20;
+const NICK_MIN = 2, NICK_MAX = 64;
 
 /* ------------------------------------------------------------ rate limits
  * In memory, so a restart forgets them. Good enough for a single process; a
@@ -118,6 +118,7 @@ function readJson(req, limit = 4096) {
 function cleanNick(raw) {
   const nick = String(raw == null ? '' : raw).trim().replace(/\s+/g, ' ');
   if (!nick) return { error: 'A nickname is required.' };
+  if ([...nick].length < NICK_MIN) return { error: 'Nicknames are at least ' + NICK_MIN + ' characters.' };
   if ([...nick].length > NICK_MAX) return { error: 'Nicknames are at most ' + NICK_MAX + ' characters.' };
   if (/[\u0000-\u001f\u007f]/.test(nick)) return { error: 'That nickname has characters I cannot store.' };
   return { nick };

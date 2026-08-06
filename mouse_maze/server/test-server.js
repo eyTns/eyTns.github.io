@@ -67,6 +67,10 @@ const SEALED = S.encode({ game:1, cIn:0, cOut:5, tiles:[S.tileIdx(13,0,1), S.til
   t('깨진 코드 거부', res.status === 400, res.body);
   res = await post('/api/submit', { nickname: '', maze: EMPTY1 });
   t('빈 닉네임 거부', res.status === 400, res.body);
+  res = await post('/api/submit', { nickname: 'x', maze: EMPTY1 });
+  t('1글자 닉네임 거부', res.status === 400, res.body);
+  res = await post('/api/submit', { nickname: 'y'.repeat(65), maze: EMPTY1 });
+  t('65글자 닉네임 거부', res.status === 400, res.body);
 
   // the cooldown, exercised on purpose rather than tripping over it
   // the cooldown, exercised on purpose rather than tripped over

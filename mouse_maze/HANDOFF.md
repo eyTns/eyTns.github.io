@@ -35,11 +35,11 @@ Claude.ai 대화에서 개발하던 것을 Claude Code로 옮기는 시점의 �
 | `server/verify-all.js` | 저장된 모든 기록을 미로에서 재계산해 대조하는 CLI |
 | `server/README.md` | 서버 사용법, curl 예시, 스키마 설계 이유 |
 
-### 테스트 (전부 통과 상태로 인계)
+### 테스트
 | 파일 | 검증 대상 |
 |---|---|
 | `tests/test-sim.js` | 앵커(빈판 14/10, 원작 스크린샷 443턴 + 히트맵 169칸), 무작위 2400판 파이썬 대조, 직렬화 왕복 |
-| `tests/ref_cases.json`, `tests/gen_ref.py` | 위 대조용 레퍼런스 케이스와 생성기 (파이썬 구현이 ground truth) |
+| `tests/gen_ref.py` | 위 대조용 레퍼런스 케이스 생성기 (파이썬 구현이 ground truth). **짝인 `tests/ref_cases.json` 이 레포에 없다.** 그래서 `test-sim.js` 는 모듈 없음으로 즉시 죽는다. 돌리려면 이 스크립트로 먼저 만들어야 한다 |
 | `tests/test-hit.js` | Maze 2 모서리 클릭 판정을 전 픽셀 스윕 |
 | `tests/test-ui.js` | index.html에서 실제 함수/CSS를 추출해 검증. 히트맵 색, 속도 사다리, 잠금 불변조건, 선언 안 된 상수 린트 등 |
 | `tests/test-page.js` | 스텁 DOM으로 페이지 전체를 헤드리스 실행. "느림 버튼 자동 선택" 버그의 회귀 테스트 포함 |
@@ -48,7 +48,9 @@ Claude.ai 대화에서 개발하던 것을 Claude Code로 옮기는 시점의 �
 ### 문서
 - `game-ui-taste.md`: 사용자의 UI 취향 명세. **모든 UI 작업 전 필독.**
   수정 지시가 나올 때마다 이 문서에 한 줄씩 추가하는 습관을 들일 것.
-  위치는 이 레포 밖: `/Users/violet/Documents/GitHub/Life-with-Claude-Code/claude-config/docs/game-ui-taste.md`
+  위치는 이 레포 밖의 다른 레포다: `Life-with-Claude-Code/claude-config/docs/game-ui-taste.md`
+  두 레포가 같은 부모 폴더에 나란히 있다. Windows 기기에서는
+  `C:\Users\Jihan\Documents\GitHub\` 아래다.
 
 ## 실행 방법
 
@@ -66,34 +68,27 @@ node server/verify-all.js    # 전체 기록 재검증
 node tests/test-sim.js && node tests/test-hit.js && node tests/test-ui.js && node tests/test-page.js && node server/test-server.js
 ```
 
+**이 줄은 지금 그대로 돌지 않는다.** `test-sim.js` 는 `tests/ref_cases.json` 이
+없어서 첫 명령에서 멈추고, Windows 작업 트리에서는 `test-ui.js` 와
+`test-page.js` 가 CRLF 때문에 멈춘다. 둘 다 함정 절에 이유와 우회법이 있다.
+아무 준비 없이 지금 돌아가는 것은 이쪽뿐이다.
+```
+node tests/test-hit.js && node server/test-server.js
+```
+
 이 폴더가 GitHub Pages 배포본이다. `index.html`+`sim.js`를 커밋하면 그대로
 정적 배포된다. 단 Submit은 서버가 필요하며, 프론트와 API가 다른 origin이면
 index.html 상단 `API_OVERRIDE`에 API 주소를 넣는다.
 
-## 현재 상태
+## 남은 일
 
-완료: 두 게임 포팅(원작과 스텝 단위 일치 검증됨), 편집기(벽/입출구/undo/
-reset/save/load), 애니메이션(입구 밖에서 출구 밖까지 보간), 히트맵(로그
-스케일, 초록→노랑→연보라→검정), 업적 12종 x 2게임, 속도 6단(2/4/7.5/20/
-60/200, 해금제), 쉐어 해금, 미로 코드 직렬화, 제출 UI, 로컬 점수 서버
-(닉네임+토큰, 동점은 제출시각 순, 페이지네이션, 레이트 리밋, 재검증 CLI).
-
-## 서버 구축 진행 체크리스트
-
-아래 "다음 작업"의 1~2번을 진행 단위로 쪼갠 것. 자세한 맥락은 그쪽을 볼 것.
+아래 "다음 작업" 1번을 진행 단위로 쪼갠 것. 자세한 맥락은 그쪽을 볼 것.
+여기까지 무엇을 했는지는 진행 기록을 볼 것.
 
 ### 사용자가 하는 일
-- [x] Node 22+ 설치, 로컬 서버 실행, 브라우저에서 제출
-- [x] `verify-all.js`로 전체 기록 재검증
-- [x] `sqlite3`로 scores.db 열어보기, 지우기, 재생성 확인
-- [x] curl로 health, submit, rank, me, board 엔드포인트 호출
-- [x] API/스키마에 대한 피드백 정리
-- [x] 배포처 결정 (GCP Compute Engine 무료 등급 e2-micro)
 - [ ] 도메인 확보 (https 필수라 도메인이 있어야 다음 단계가 열림)
 
 ### 에이전트가 하는 일
-- [x] 레포 구조 정리 (resource 해체, server/와 tests/ 배치, 문서 갱신)
-- [x] VM에 실행 환경 구성 (Node 22, git clone, 방화벽 개방, 첫 제출 확인)
 - [ ] 상시 실행 등록 (systemd). 지금은 SSH 창을 닫으면 서버가 죽는다
 - [ ] 도메인과 https 붙이기. 고정 IP 예약은 리전 확정 뒤에 한다
 - [ ] `API_OVERRIDE`에 API 주소 기입 후 Pages에서 제출 확인
@@ -105,7 +100,7 @@ reset/save/load), 애니메이션(입구 밖에서 출구 밖까지 보간), 히
 
 새 작업이 끝날 때마다 짧게 한 줄씩 덧붙인다.
 
-### 2026-08-29 배포
+### 배포
 - GCP Compute Engine에 올렸다. 프로젝트 `vm-for-html-apps`, 인스턴스
   `html-apps-server-uscentral1`, us-central1-c, e2-micro, Debian 13, 표준 계층
 - us-west1의 a/b/c 세 존 모두 e2-micro 용량 부족으로 기동 실패해서 리전을 옮겼다.
@@ -119,94 +114,60 @@ reset/save/load), 애니메이션(입구 밖에서 출구 밖까지 보간), 히
   토큰은 `submitters.token`에 평문으로 있으므로 DB에서 꺼내 옮기면 된다
 - 외부 IP 과금 여부는 아직 미확인. 결제 보고서를 SKU 기준으로 보면 확인된다
 
-### 2026-08-29 Leaderboard 설계
-- `/api/board` 응답에 `submittedAt`을 추가했다 (db.js의 SELECT와 server.js의 매핑).
-  화면에는 당분간 쓰지 않는다
-- 사이드바에 Leaderboard 버튼을 넣기로 하고 사양을 확정했다. 아직 구현하지 않았다
+### Leaderboard 와 UI 손질
+- 리더보드 창을 붙였다. 코드에 없는 결정은 아래 Leaderboard 절, UI 취향 변경은
+  취향 명세에 있다
 
 ## 화면 상태 (phase)
 
 `edit | running | escaped | stopped` 네 가지다. 예전에는 `done` 하나가
 `escaped` 와 `stopped` 를 겸했다.
 
-- `edit` 벽을 놓고 지운다. Save 와 Load 가 열린다. Reset 은 벽을 전부 지운다
-- `running` 쥐가 걷는 중이다. 실행 버튼이 Stop 이 되고 나머지는 잠긴다
-- `escaped` 쥐가 출구로 나갔다. **Submit 이 열리는 유일한 상태다**
-- `stopped` 사람이 중간에 멈췄다. 탈출이 아니므로 Submit 이 열리지 않는다
-
 `escaped` 와 `stopped` 에서는 판이 잠긴다. 여는 것은 Reset 뿐이고, 그 Reset 은
-쥐와 바닥 색칠만 지우고 벽을 남긴 채 `edit` 으로 돌아간다. 그래서 Submit 도
-같이 닫힌다.
+쥐와 바닥 색칠만 지우고 벽을 남긴 채 `edit` 으로 돌아간다. Submit 이 열리는
+것은 `escaped` 하나뿐이므로 Reset 과 함께 닫힌다.
 
 **이 구조가 있는 이유.** 예전에는 완주한 판을 한 번 클릭하면 결과가 지워지면서
 그 클릭이 벽까지 놓았다. 그 상태에서 Submit 이 그대로 열려 있어서, 달려보지도
 않은 미로를 제출할 수 있었다. `tests/test-page.js` 가 이 여섯 가지를 붙잡고
 있으므로 phase 를 손볼 때 그쪽을 함께 볼 것.
 
-## Leaderboard 사양 (확정, 미구현)
+## Leaderboard 사양
 
-사용자와 문답으로 정한 결정 목록이다. 취향 명세가 아니라 이 기능의 사양이므로
-여기에 둔다.
+모양과 배치는 `index.html` 을 보면 된다. 여기에는 코드를 읽어도 알 수 없는 것만
+남긴다. 무엇을 일부러 넣지 않았는지, 왜 그렇게 정했는지, 어디까지가 한계인지다.
 
-- 버튼 이름은 Leaderboard. 사이드바에서 Awards 아래, 속도 버튼 위. 해금 없이 처음부터 열림
-- 창 제목은 "Mouse Maze n Leaderboard". 지금 열려 있는 게임의 순위만 보여주고
-  창 안에서 게임을 바꾸지 않는다
-- 컬럼은 Rank, Name, Turns 세 개. 제출시각은 서버가 내보내지만 화면에 쓰지 않는다
-- capped를 리더보드에 쓰지 않는다. 턴 카운터의 "(capped)" 표시는 그대로 둔다
-- 한 페이지 20명. `<<` 와 `>>` 로 넘기고 Close와 한 줄에 둔다
-- 첫 페이지에서 `<<`, 마지막 페이지에서 `>>` 는 흐려지며 눌리지 않는다
-- 닉네임이 길면 말줄임표 없이 칸 너비에서 잘린다
-- 창 크기는 기록 20개, 기록 0개, 서버 없음에서 모두 같다
-- 기록 0개면 컬럼 줄만 남기고 "No records yet", 서버를 못 부르면
-  "Could not reach the server"
-- 창은 바깥 클릭으로 닫힌다. 바깥 클릭을 막는 것은 Submit 창뿐이다
-- 조회는 1000줄을 한 번에 받고 10초 안에는 다시 요청하지 않는다.
-  20줄씩 나누므로 한 번 받으면 50페이지분이다
+**일부러 넣지 않은 것**
+- 제출시각. 서버가 `submittedAt` 으로 내보내고 있으나 화면에 쓰지 않는다
+- `capped`. 리더보드에 쓰지 않는다. 턴 카운터의 "(capped)" 표시는 그대로 둔다
+- `/api/board` 의 IP 기준 조회 제한
+- 내 순위를 목록과 별도로 붙이는 줄
+- 순위 표기의 "1,000,000+" 규칙. 보드의 등수는 페이지 위치라 100만을 넘으려면
+  기록이 100만 건 있어야 한다. 닿지 않는 분기를 넣지 않았다
+
+**그렇게 정한 이유**
 - 제출에 성공하면 그 게임의 캐시를 버린다. 방금 낸 기록이 바로 보여야 하기
   때문이다. 제출 자체가 10초에 한 번이라 조회 요청의 상한은 그대로 지켜진다.
   남이 낸 기록이 최대 10초 늦게 보이는 것은 그대로 둔다
-- `/api/board`에 IP 기준 조회 제한을 넣지 않는다
-- 내 순위를 목록과 별도로 붙이지 않는다
-- 목록 안에서 내 닉네임이 붙은 줄은 글자를 초록으로 칠한다. 여러 줄이면 전부
-  칠한다. 같은 닉네임이 다른 점수를 내면 줄이 따로 남으므로, 한 사람이 한 판에
-  여러 줄을 차지할 수 있다. 이 판은 사람의 순위표가 아니라 판의 순위표다
+- 요청이 오가는 동안 화면에 아무것도 그리지 않는다. 버튼이 잠깐 멈춘 것처럼
+  보여도 된다는 것이 사용자의 선택이다
+
+**알아둘 한계**
+- 같은 닉네임이 다른 점수를 내면 줄이 따로 남는다. 한 사람이 한 판에서 여러 줄을
+  차지할 수 있다. 이 판은 판의 순위표다
 - 내 줄인지는 localStorage 의 닉네임과 목록의 닉네임을 견주어 정한다. 토큰
   소유까지 보지 않으므로 기기를 바꿔 토큰을 잃은 상태에서도 표시는 된다
 
-- 기록이 20행에 못 미치면 남는 행을 그리지 않는다. 목업의 A안과 B안을 비교해 B안으로 정했다
-- 요청이 오가는 동안 아무것도 그리지 않는다. 버튼이 잠깐 멈춘 것처럼 보여도 된다
-
-### 구현 목록 (전부 완료)
-
-서버
-- [x] `/api/board`의 limit 상한을 100에서 1000으로 올렸다
-
-프론트
-- [x] 사이드바에 Leaderboard 버튼 추가와 배선
-- [x] `sheetLeaderboard()`. 표, 페이지 버튼, 상태별 문구
-- [x] `.lbwrap` 등 표와 창의 CSS. 높이 508px은 헤더 28 + 20행 × 24의 산수다
-- [x] 1000줄 가져오기, 10초 캐시, 51페이지에서 다음 묶음 요청
-- [x] `API_BASE` 가 비었을 때도 같은 창에 "Could not reach the server"
-
-테스트
-- [x] test-ui.js에 버튼 순서 검증 추가
-- [x] test-server.js에 limit 1000, 1001 잘림 검증 추가
-
-넣지 않은 것
-- 순위 표기에 "1,000,000+" 규칙을 적용하지 않았다. 보드의 등수는 페이지 위치라
-  100만을 넘으려면 기록이 100만 건 있어야 한다. 닿지 않는 분기를 넣지 않았다
 
 ## 다음 작업 (사용자와 논의된 순서)
 
-### 1. 로컬에서 서버 익히기 (사용자가 "배워가면서 하겠다"고 함)
-- `node server/server.js` 켜고 localhost:8787에서 제출 몇 번
-- `server/scores.db`를 열어보고, 지우고, `verify-all.js` 돌려보기
-- `server/README.md`의 curl 예시 따라해보기
-- 여기서 API/스키마에 대한 사용자 피드백이 나올 것
+로컬에서 서버 익히기와 배포처 결정은 끝났다. 무엇을 했는지는 진행 기록을 볼 것.
 
-### 2. 배포처 결정 후 서버 이전
-- 사용자는 호스팅 지식이 없어 배워가며 결정할 예정. 아직 미정
-- 프론트는 GitHub Pages(eyTns.github.io) 예정. tuntu라는 선례 있음
+### 1. 배포 마무리
+- 서버는 GCP VM 위에서 돌고 있다. 남은 것은 상시 실행 등록, 도메인, https,
+  고정 IP, 백업이다. 항목별로는 위 체크리스트에 있다
+- 프론트는 GitHub Pages(eyTns.github.io). tuntu라는 선례 있음.
+  Pages 는 보통 `main` 을 서빙하므로 작업 브랜치는 합쳐야 반영된다
 - 프론트/API가 다른 origin이면 index.html 상단 `API_OVERRIDE`에 API 주소
 - **주의**: Cloudflare Workers 무료 등급(CPU 10ms)은 부적합 판정 완료.
   기록급 미로 채점이 7ms라 여유가 없고 cap 도달 미로는 8.3초.
@@ -216,13 +177,13 @@ reset/save/load), 애니메이션(입구 밖에서 출구 밖까지 보간), 히
 - 참고 오픈소스: AntGame.io (github.com/Cuzzo01/antgame.io).
   구조가 거의 동일하며 RunVerifier를 API에서 분리한 이유를 볼 것
 
-### 3. 서버 고도화 (필요해지면)
+### 2. 서버 고도화 (필요해지면)
 - 채점을 워커/별도 프로세스로 분리 (cap 도달 미로가 8.3초 블로킹하는 문제)
 - 오늘/이번주/이번달/역대 기간별 리더보드. created_at은 이미 저장 중이나
   score_counts 집계가 역대 전용이라 기간별 셈 전략이 따로 필요
 - capped=1 기록 알림 (현재는 콘솔 로그만)
 
-### 4. 계정 시스템 (2차 목표, 사용자 구상)
+### 3. 계정 시스템 (2차 목표, 사용자 구상)
 - 구글 로그인 등. 닉네임은 가입 시 설정, 변경 시 리더보드 자동 반영
   (scores가 nickname을 복사하지 않고 submitters.id를 참조하는 이유),
   중복 닉네임 불가, 유저별 완주 미로 목록, 유저별 업적 서버 저장
@@ -232,7 +193,7 @@ reset/save/load), 애니메이션(입구 밖에서 출구 밖까지 보간), 히
 - 업적/진행은 현재 localStorage. kordle식 전적 코드 내보내기/불러오기를
   중간 단계로 제안했었음 (미구현)
 
-### 5. 미구현 잡무
+### 4. 미구현 잡무
 - 원작의 음악 버튼
 - Web Worker 편집 중 턴 계산 (현재 메인 스레드. 실제 미로에선 1ms라
   문제없으나 극단적 미로에서 탭이 잠깐 멈출 수 있음)

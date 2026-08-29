@@ -277,7 +277,6 @@ if (require.main === module) {
   server.listen(PORT, () => {
     console.log('Mouse Maze score server on http://localhost:' + PORT);
     console.log('database:', store.DB_PATH);
-    console.log('step cap:', S.STEP_CAP.toLocaleString());
     console.log('\nOpen the game at http://localhost:' + PORT);
   });
 }

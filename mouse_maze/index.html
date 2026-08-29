@@ -20,11 +20,11 @@
   .btn{display:flex;align-items:center;justify-content:center;width:100%;height:38px;
     padding:4px 8px;background:var(--chrome);border:2px solid;
     border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
-    color:var(--ink);font:inherit;font-size:15px;font-weight:400;
+    color:var(--red);font:inherit;font-size:15px;font-weight:700;
     text-align:center;cursor:pointer;line-height:1.1;overflow:hidden}
   .btn:hover{background:#343434}
   .btn:active{border-color:var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo)}
-  .btn:disabled{color:#6b6b6b;cursor:default;background:var(--chrome)}
+  .btn:disabled{color:var(--red-dim);cursor:default;background:var(--chrome)}
   .btn:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
   .btn.go{height:50px;font-size:17px}
 
@@ -62,6 +62,8 @@
     border:2px solid var(--chrome-lo)}
   canvas#board{display:block;width:100%;height:auto;touch-action:manipulation;cursor:pointer}
   .side{flex:0 0 132px;display:grid;gap:7px;align-content:start}
+  .side .btn{color:var(--ink);font-weight:400}
+  .side .btn:disabled{color:#6b6b6b}
   .readout{background:#000;border:2px solid var(--chrome-lo);height:50px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     text-align:center;overflow:hidden}
@@ -139,8 +141,6 @@
       <div><b>Mouse Maze 2</b><span>9 × 9</span></div>
     </button>
   </div>
-  <p class="hint">The mouse always steps to its least-visited neighbour,
-    breaking ties down → right → left → up. Every escape is reproducible.</p>
 </section>
 
 <section id="game">
@@ -164,7 +164,6 @@
       <div class="speeds" id="speeds"></div>
     </div>
   </div>
-  <p class="hint" id="hint"></p>
 </section>
 
 <div class="veil" id="veil"><div class="sheet" id="sheet"></div></div>
@@ -559,9 +558,6 @@ function refresh(){
   }
 
   renderSpeeds();
-  $('hint').textContent = phase!=='edit' ? '' : (game===1
-    ? 'Click a tile to lay a brick. Click the black bar above or below to move the entrance or the exit.'
-    : 'Click the gap between two tiles to drop a plank. Click the black bar above or below to move the entrance or the exit.');
   paint();
 }
 

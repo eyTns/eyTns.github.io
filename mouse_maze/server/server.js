@@ -244,7 +244,8 @@ function handleBoard(res, url) {
   // layout. The query already sorts in ranking order, so a row's rank is simply
   // its position, which is why every entry shows a distinct number.
   const rows = store.board(game, limit, offset).map((r, i) => ({
-    rank: offset + i + 1, nickname: r.nickname, turns: r.turns, capped: !!r.capped
+    rank: offset + i + 1, nickname: r.nickname, turns: r.turns, capped: !!r.capped,
+    submittedAt: r.created_at
   }));
   send(res, 200, { game, total: store.totalFor(game), offset, limit, entries: rows });
 }

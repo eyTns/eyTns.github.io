@@ -93,7 +93,7 @@ function gameQueries(g) {
 
     // Deliberately never selects `maze`: a player may not read another player's
     // layout, so the column simply does not leave the server here.
-    board: db.prepare(`SELECT s.turns, s.capped, m.nickname
+    board: db.prepare(`SELECT s.turns, s.capped, s.created_at, m.nickname
       FROM ${scores} s JOIN submitters m ON m.id = s.submitter_id
       ORDER BY s.turns DESC, s.created_at ASC, s.id ASC
       LIMIT ? OFFSET ?`),

@@ -86,16 +86,85 @@ reset/save/load), 애니메이션(입구 밖에서 출구 밖까지 보간), 히
 - [x] Node 22+ 설치, 로컬 서버 실행, 브라우저에서 제출
 - [x] `verify-all.js`로 전체 기록 재검증
 - [x] `sqlite3`로 scores.db 열어보기, 지우기, 재생성 확인
-- [x] curl로 엔드포인트 5종 호출 (health, submit, rank, me, board)
+- [x] curl로 health, submit, rank, me, board 엔드포인트 호출
 - [x] API/스키마에 대한 피드백 정리
-- [ ] 배포처 결정 (https 필수, Cloudflare Workers 무료 등급 제외)
+- [x] 배포처 결정 (GCP Compute Engine 무료 등급 e2-micro)
+- [ ] 도메인 확보 (https 필수라 도메인이 있어야 다음 단계가 열림)
 
 ### 에이전트가 하는 일
 - [x] 레포 구조 정리 (resource 해체, server/와 tests/ 배치, 문서 갱신)
-- [ ] 배포처 결정 후 서버 이전 지원 (실행 환경 구성, 배포 절차 문서화)
+- [x] VM에 실행 환경 구성 (Node 22, git clone, 방화벽 개방, 첫 제출 확인)
+- [ ] 상시 실행 등록 (systemd). 지금은 SSH 창을 닫으면 서버가 죽는다
+- [ ] 도메인과 https 붙이기. 고정 IP 예약은 리전 확정 뒤에 한다
 - [ ] `API_OVERRIDE`에 API 주소 기입 후 Pages에서 제출 확인
 - [ ] 리버스 프록시 뒤라면 레이트 리밋의 IP 판별을 X-Forwarded-For 기준으로 수정
 - [ ] 배포 후 원격 서버에서 `verify-all.js` 실행 경로 확인
+- [ ] `scores.db` 백업 방법 정하기. 지금은 clone 폴더 안에 있다
+
+## 진행 기록
+
+새 작업이 끝날 때마다 짧게 한 줄씩 덧붙인다.
+
+### 2026-08-29 배포
+- GCP Compute Engine에 올렸다. 프로젝트 `vm-for-html-apps`, 인스턴스
+  `html-apps-server-uscentral1`, us-central1-c, e2-micro, Debian 13, 표준 계층
+- us-west1의 a/b/c 세 존 모두 e2-micro 용량 부족으로 기동 실패해서 리전을 옮겼다.
+  무료 등급은 us-west1/us-central1/us-east1 합산이라 리전을 바꿔도 무료가 유지된다.
+  이 실패는 VM을 껐다 켤 때마다 재발할 수 있다
+- 외부 IP는 임시 주소다. 방화벽 규칙 `allow-mm-8787`과 인스턴스 태그 `mm-server`로
+  8787을 열었다. 접속은 http뿐이고 GitHub Pages(https)에서는 아직 부를 수 없다
+- 홈 디렉토리에 clone하고 `node server/server.js`로 띄워 첫 제출이 저장되는 것까지 확인
+- **함정**: origin이 바뀌면 브라우저 localStorage의 닉네임 토큰이 딸려오지 않아 그
+  닉네임으로 다시 제출할 수 없다. 도메인을 붙일 때, IP가 바뀔 때 모두 해당한다.
+  토큰은 `submitters.token`에 평문으로 있으므로 DB에서 꺼내 옮기면 된다
+- 외부 IP 과금 여부는 아직 미확인. 결제 보고서를 SKU 기준으로 보면 확인된다
+
+### 2026-08-29 Leaderboard 설계
+- `/api/board` 응답에 `submittedAt`을 추가했다 (db.js의 SELECT와 server.js의 매핑).
+  화면에는 당분간 쓰지 않는다
+- 사이드바에 Leaderboard 버튼을 넣기로 하고 사양을 확정했다. 아직 구현하지 않았다
+
+## Leaderboard 사양 (확정, 미구현)
+
+사용자와 문답으로 정한 결정 목록이다. 취향 명세가 아니라 이 기능의 사양이므로
+여기에 둔다.
+
+- 버튼 이름은 Leaderboard. 사이드바에서 Awards 아래, 속도 버튼 위. 해금 없이 처음부터 열림
+- 창 제목은 "Mouse Maze n Leaderboard". 지금 열려 있는 게임의 순위만 보여주고
+  창 안에서 게임을 바꾸지 않는다
+- 컬럼은 Rank, Name, Turns 세 개. 제출시각은 서버가 내보내지만 화면에 쓰지 않는다
+- capped를 리더보드에 쓰지 않는다. 턴 카운터의 "(capped)" 표시는 그대로 둔다
+- 한 페이지 20명. `<<` 와 `>>` 로 넘기고 Close와 한 줄에 둔다
+- 첫 페이지에서 `<<`, 마지막 페이지에서 `>>` 는 흐려지며 눌리지 않는다
+- 닉네임이 길면 말줄임표 없이 칸 너비에서 잘린다
+- 창 크기는 기록 20개, 기록 0개, 서버 없음에서 모두 같다
+- 기록 0개면 컬럼 줄만 남기고 "No records yet", 서버를 못 부르면
+  "Could not reach the server"
+- 창은 바깥 클릭으로 닫힌다. 바깥 클릭을 막는 것은 Submit 창뿐이다
+- 조회는 1000줄을 한 번에 받고 10초 안에는 다시 요청하지 않는다.
+  20줄씩 나누므로 한 번 받으면 50페이지분이다
+- `/api/board`에 IP 기준 조회 제한을 넣지 않는다
+- 내 순위를 목록과 별도로 붙이지 않는다
+
+### 구현 목록
+
+서버
+- [ ] `/api/board`의 limit 상한을 100에서 1000으로 올린다 (server.js의 `Math.min(100, ...)`)
+
+프론트
+- [ ] 사이드바에 Leaderboard 버튼 추가와 배선
+- [ ] `sheetLeaderboard()` 작성. 표, 페이지 버튼, 상태별 문구
+- [ ] 표와 창의 CSS 추가
+- [ ] 1000줄 가져오기, 10초 캐시, 51페이지에서 다음 묶음 요청
+- [ ] `API_BASE` 가 비었을 때도 같은 창에 "Could not reach the server"
+
+테스트
+- [ ] test-ui.js에 버튼 순서 검증 추가 (awards 다음, speeds 앞)
+- [ ] test-server.js에 limit 1000 검증 추가
+
+미결
+- [ ] 기록이 20행에 못 미칠 때 빈 행을 그릴지. 목업으로 보고 정한다
+- [ ] 응답을 기다리는 동안 창에 무엇을 보여줄지
 
 ## 다음 작업 (사용자와 논의된 순서)
 

@@ -144,5 +144,5 @@ const SEALED = S.encode({ game:1, cIn:0, cOut:5, tiles:[S.tileIdx(13,0,1), S.til
 
   await new Promise(r => server.close(r));
   console.log(fail ? '\n' + fail + ' FAILED' : '\nALL PASS');
-  process.exit(fail ? 1 : 0);
+  process.exitCode = fail ? 1 : 0;
 })();

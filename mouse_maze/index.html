@@ -20,17 +20,17 @@
   .btn{display:flex;align-items:center;justify-content:center;width:100%;height:38px;
     padding:4px 8px;background:var(--chrome);border:2px solid;
     border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
-    color:var(--red);font:inherit;font-size:15px;font-weight:700;
+    color:var(--ink);font:inherit;font-size:15px;font-weight:400;
     text-align:center;cursor:pointer;line-height:1.1;overflow:hidden}
   .btn:hover{background:#343434}
   .btn:active{border-color:var(--chrome-lo) var(--chrome-hi) var(--chrome-hi) var(--chrome-lo)}
-  .btn:disabled{color:var(--red-dim);cursor:default;background:var(--chrome)}
+  .btn:disabled{color:#6b6b6b;cursor:default;background:var(--chrome)}
   .btn:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
   .btn.go{height:50px;font-size:17px}
 
   /* ---- title screen ---- */
   #title{margin:auto;text-align:center;max-width:460px;width:100%}
-  #title h1{margin:0 0 22px;font-size:clamp(40px,15vw,78px);line-height:1;font-weight:700;
+  #title h1{margin:0 0 22px;font-size:clamp(40px,15vw,78px);line-height:1;font-weight:400;
     white-space:nowrap;color:var(--grass);text-shadow:4px 4px 0 #000}
   .picks{display:grid;gap:12px}
   .pick{display:flex;gap:14px;align-items:center;text-align:left;padding:14px;
@@ -39,7 +39,7 @@
     color:var(--ink);font:inherit;cursor:pointer}
   .pick:hover{background:#343434}
   .pick:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
-  .pick b{display:block;font-size:22px;color:#f5c542}
+  .pick b{display:block;font-size:22px;font-weight:400;color:#f5c542}
   .pick span{font-size:13px;color:var(--ink-dim)}
   .pick canvas{flex:none;background:#000;image-rendering:pixelated}
 
@@ -48,7 +48,7 @@
   #game.on{display:block}
   .bar{background:var(--chrome);border:2px solid;
     border-color:var(--chrome-hi) var(--chrome-lo) var(--chrome-lo) var(--chrome-hi);
-    padding:5px 9px;font-size:clamp(11px,2.5vw,14px);font-weight:700;
+    padding:5px 9px;font-size:clamp(11px,2.5vw,14px);font-weight:400;
     text-align:center;line-height:1.15;display:flex;overflow:hidden;
     align-items:center;justify-content:center}
   /* Every control keeps a fixed height so a long status line cannot resize
@@ -107,9 +107,7 @@
     font-size:10.5px;font-weight:700;color:#4a4a4a;line-height:1.15}
   .tro.got{border-color:#f5c542;background:#1d2a12;color:var(--grass)}
   .trolabel{text-align:center;font-size:13px;color:#f5c542;min-height:18px;margin-bottom:10px}
-  /* The board area is one fixed block whatever it holds: twenty rows, three
-     rows, or a message. Anything else would make the window jump.
-     Header 26 + its 2px rule + 20 rows of (23 + 1px rule) == 508. */
+  /* Header 26 + its 2px rule + 20 rows of (23 + 1px rule) == 508. */
   .lbwrap{height:508px;overflow:hidden;position:relative}
   .lb{width:100%;border-collapse:collapse;table-layout:fixed}
   .lb th{height:26px;padding:0 6px;font-size:12px;font-weight:700;color:#f5c542;
@@ -118,7 +116,8 @@
   .lb td{height:23px;padding:0 6px;font-size:13px;color:var(--ink);
     border-bottom:1px solid #242424;overflow:hidden;white-space:nowrap}
   .lb .r{width:54px;text-align:right}
-  .lb .t{width:86px;text-align:right;color:var(--grass)}
+  .lb .t{width:86px;text-align:right}
+  .lb .mine td{color:var(--grass)}
   .lbmsg{position:absolute;left:0;right:0;top:28px;bottom:0;
     display:flex;align-items:center;justify-content:center;
     font-size:14px;color:var(--ink-dim)}
@@ -133,11 +132,11 @@
   <div class="picks">
     <button class="pick" data-game="1">
       <canvas width="66" height="66" data-prev="1"></canvas>
-      <div><b>Maze 1</b><span>13 × 13</span></div>
+      <div><b>Mouse Maze 1</b><span>13 × 13</span></div>
     </button>
     <button class="pick" data-game="2">
       <canvas width="66" height="66" data-prev="2"></canvas>
-      <div><b>Maze 2</b><span>9 × 9</span></div>
+      <div><b>Mouse Maze 2</b><span>9 × 9</span></div>
     </button>
   </div>
   <p class="hint">The mouse always steps to its least-visited neighbour,
@@ -321,7 +320,7 @@ let spec = S.emptySpec(1);
 let history = [];           // encoded snapshots, so undo can never desync
 let run = null;             // active simulation stepper
 let reach = null;           // BFS result, so sealed-off cells can be bricked
-let phase = 'edit';         // edit | running | done
+let phase = 'edit';         // edit | running | escaped | stopped
 let lastResult = null;
 let raf = 0, lastT = 0;
 let animFrom = {r:-1,c:0}, animTo = {r:0,c:0}, tprog = 0;   // animation trails the sim by one tile
@@ -542,7 +541,8 @@ function refresh(){
   $('go').textContent = phase==='running' ? 'Stop the mouse'
     : (ok ? 'Release the mouse!' : 'Release the mouse! ⚠️');
   const idle = phase!=='running';
-  for (const id of ['reset','load','save','share','submit']) $(id).disabled = !idle;
+  for (const id of ['reset','share','submit']) $(id).disabled = !idle;
+  for (const id of ['load','save']) $(id).disabled = phase!=='edit';
   $('undo').disabled = !idle || history.length===0;
 
   const pv = $('preview');
@@ -581,8 +581,7 @@ function boardPoint(ev){
 }
 
 function onBoard(ev){
-  if (phase==='running') return;
-  if (phase==='done'){ run=null; lastResult=null; phase='edit'; }   // editing resumes on touch
+  if (phase!=='edit') return;
   const G=GEO[game], N=G.N, T=G.tile, pitch=T+G.gap, oy=originY(game), pw=geoW(game);
   const {x,y} = boardPoint(ev);
   const col = Math.max(0, Math.min(N-1, Math.floor(x/pitch)));
@@ -644,7 +643,7 @@ function startRun(){
 }
 
 function finishRun(){
-  phase = 'done';
+  phase = 'escaped';
   let worst = 0;
   for (let i=0;i<run.visits.length;i++) if (run.visits[i]>worst) worst = run.visits[i];
   const turns = run.moves();
@@ -684,8 +683,8 @@ function tick(now){
   if (run.isDone() && tprog >= 1){
     paint();                                  // land the mouse before reporting
     stopRun();
-    if (run.isEscaped()) return finishRun();
-    phase='done'; setStatus('The mouse is boxed in with nowhere to step.'); return refresh();
+    // A maze that passed validate() always escapes; see HANDOFF.md.
+    return finishRun();
   }
   setStatus('I have spent '+run.moves().toLocaleString()+' turns in this maze. I have been here '
     + (run.here()-1).toLocaleString() + ' times before.');
@@ -729,11 +728,9 @@ function sheetLoad(){
 }
 
 function sheetSubmit(){
-  const check = S.validate(spec);
-  if (!check.ok){
-    setStatus("There is no route from the entrance to the exit, so there is nothing to submit yet.");
-    return;
-  }
+  // The board is locked from the escape until Reset, so a route check here
+  // could never fail. Outside that window the press does nothing, silently.
+  if (phase !== 'escaped') return;
   const code = S.encode(spec);
 
   if (!API_BASE){
@@ -777,6 +774,7 @@ function sheetSubmit(){
       const data = await res.json();
       lastSubmit = Date.now();
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      lbHeld[game] = null; // Empty cache when current player submitted
       if (data.token && data.token !== P.token){ P.token = data.token; Store.set('mm.token', data.token); }
       const rank = data.rankCapped ? '1,000,000+' : Number(data.rank).toLocaleString();
       setStatus(data.duplicate
@@ -825,9 +823,6 @@ function sheetAwards(){
  * so fifty page turns cost nothing. A second call for the same chunk inside
  * LB_TTL is answered from what is already held, which is what keeps opening
  * and closing the window from turning into a stream of requests.
- *
- * Nothing is drawn while a request is in flight. The button simply does not
- * respond until the rows are in hand.
  */
 const LB_ROWS = 20;                    // rows on a page, and the board's fixed height
 const LB_CHUNK = 1000;                 // rows per request, fifty pages of them
@@ -857,7 +852,8 @@ function lbSlice(held){
 
 function lbPaint(g, held, message){
   const rows = message ? '' : '<tbody>' + lbSlice(held).map(e =>
-    '<tr><td class="r">'+e.rank.toLocaleString()+'</td>'
+    '<tr' + (e.nickname === P.nick ? ' class="mine"' : '') + '>'
+    + '<td class="r">'+e.rank.toLocaleString()+'</td>'
     + '<td>'+lbEscape(e.nickname)+'</td>'
     + '<td class="t">'+e.turns.toLocaleString()+'</td></tr>').join('') + '</tbody>';
   const total = message ? 0 : held.total;
@@ -914,16 +910,19 @@ document.querySelectorAll('.pick').forEach(b =>
 $('back').onclick = () => { stopRun(); run=null; phase='edit';
   $('game').classList.remove('on'); $('title').style.display=''; };
 $('go').onclick = () => {
-  if (phase==='running'){ stopRun(); phase='done';
+  if (phase==='running'){ stopRun(); phase='stopped';
     setStatus('Stopped after '+run.moves().toLocaleString()+' turns. Reset to build again.'); return refresh(); }
-  if (phase==='done'){ run=null; lastResult=null; phase='edit'; }
+  if (phase!=='edit'){ run=null; lastResult=null; phase='edit'; }
   startRun();
 };
 $('undo').onclick = () => { const p = history.pop(); if (!p) return;
   spec = S.decode(p); run=null; lastResult=null; phase='edit';
-  setStatus('Undone.'); refresh(); };
-$('reset').onclick = () => { pushHistory(); spec = S.emptySpec(game); run=null; lastResult=null;
-  phase='edit'; setStatus('Board cleared.'); refresh(); };
+  refresh(); };
+$('reset').onclick = () => {
+  // Nothing was undone, so no history entry, and the status line is left alone.
+  if (phase!=='edit'){ run=null; lastResult=null; phase='edit'; return refresh(); }
+  pushHistory(); spec = S.emptySpec(game); run=null; lastResult=null;
+  setStatus('Board cleared.'); refresh(); };
 $('save').onclick = sheetSave;
 $('load').onclick = sheetLoad;
 $('submit').onclick = sheetSubmit;

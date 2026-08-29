@@ -100,6 +100,10 @@ global.getComputedStyle = () => ({ getPropertyValue: () => '' });
 /* seed storage the way an older build would have left it */
 const seed = process.argv[2];
 if (seed) { lsMap.set('mm.progress.1', seed); lsMap.set('mm.progress.2', seed); }
+// The turn counter is the only window onto the maze the page is holding, and it
+// stays covered until the game has been shared. Uncover it so the phase checks
+// below can tell a wall that was laid from one that was refused.
+lsMap.set('mm.shared', '1');
 
 /* --------------------------------------------------------- run the page */
 global.MazeSim = require('../sim.js');
@@ -115,6 +119,15 @@ function pads() {
     hidden: b.style.visibility === 'hidden',
     label: b.getAttribute('aria-label') || null
   }));
+}
+// Release the mouse and hand the animation frames it asks for until it is done.
+// dt is clamped inside the page, so a huge clock step is still one move.
+function runToEnd() {
+  el('go').onclick();
+  for (let i = 0; i < 4000 && pending; i++) {
+    clock += 1000;
+    const fn = pending; pending = null; fn(clock);
+  }
 }
 function report(label) {
   const p = pads();
@@ -133,11 +146,7 @@ function report(label) {
   picks[1]._on.click();                              // open Maze 2
   const before = report('2탄 진입 직후');
 
-  el('go').onclick();                                // release the mouse
-  for (let i = 0; i < 4000 && pending; i++) {
-    clock += 1000;                                   // dt is clamped, so 1 move/frame
-    const fn = pending; pending = null; fn(clock);
-  }
+  runToEnd();
   const after = report('빈 판 완주 후 (first 획득)');
 
   let fail = 0;
@@ -152,6 +161,59 @@ function report(label) {
     const saved = JSON.parse(localStorage.getItem('mm.progress.2') || '{}');
     t('저장된 속도가 사다리 위의 값', [2,4,7.5,20,60,200].includes(saved.spd));
   }
+  /* ---------------------------------------------------------------- phases
+   * The board is open only while building. Once the mouse is released it stays
+   * shut until Reset, and Submit opens only on a walk that reached the exit.
+   * Before this, one click on a finished board both wiped the walk and laid a
+   * brick, so an edited maze could be submitted without ever being run.
+   */
+  el('back').onclick();
+  picks[0]._on.click();                              // Maze 1: any tile is a wall
+
+  const turns = () => el('preview').innerHTML;
+  // The canvas is 390x450 inside a rect the stub reports as 400x480.
+  const at = (row, col) => ({
+    clientX: (col * 30 + 15) * (400 / 390),
+    clientY: (30 + row * 30 + 15) * (480 / 450)
+  });
+  const empty = turns();
+  el('board')._on.click(at(6, 0));                   // straight into the walk
+  const built = turns();
+  t('편집 중에는 판 클릭이 벽을 놓음', built !== empty);
+
+  runToEnd();
+  t('완주하면 Save 가 잠김', el('save').disabled === true);
+  t('완주하면 Load 가 잠김', el('load').disabled === true);
+  const walked = el('status').textContent;
+  el('board')._on.click(at(3, 0));
+  t('완주 화면에서 판 클릭은 벽을 놓지 않음', turns() === built);
+  t('판을 눌러도 편집이 열리지 않음', el('save').disabled === true);
+
+  el('reset').onclick();
+  t('리셋 한 번에 편집이 열림', el('save').disabled === false);
+  t('리셋은 벽을 남김', turns() === built);
+  t('결과만 지우는 리셋은 상태줄을 건드리지 않음', el('status').textContent === walked);
+  el('reset').onclick();
+  t('편집 중의 리셋은 벽을 전부 지움', turns() === empty);
+
+  const sheetOpen = () => el('veil').classList.contains('on');
+  el('submit').onclick();
+  t('편집 중 Submit 은 아무 창도 열지 않음', !sheetOpen());
+  runToEnd();
+  el('submit').onclick();
+  t('완주 뒤 Submit 은 창을 엶', sheetOpen());
+  el('veil').classList.remove('on');
+
+  el('reset').onclick();
+  el('go').onclick();                                // release
+  clock += 1000; { const fn = pending; pending = null; fn(clock); }   // one move
+  el('go').onclick();                                // stop partway
+  t('중간에 멈추면 Save 가 잠김', el('save').disabled === true);
+  el('submit').onclick();
+  t('중간에 멈춘 뒤 Submit 은 아무 창도 열지 않음', !sheetOpen());
+  el('reset').onclick();
+  t('중간 정지 뒤 리셋으로 편집이 열림', el('save').disabled === false);
+
   console.log(fail ? '\n' + fail + ' FAILED' : '\nALL PASS');
   process.exit(fail ? 1 : 0);
 })();

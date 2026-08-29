@@ -134,6 +134,14 @@ const SEALED = S.encode({ game:1, cIn:0, cOut:5, tiles:[S.tileIdx(13,0,1), S.til
   t('보드에 미로가 포함되지 않음',
     !JSON.stringify(res.body).includes('MM1-'), res.body);
 
+  // the window asks for a thousand rows at a time and pages through them offline
+  {
+    const big = await get('/api/board?game=1&limit=1000');
+    t('한 번에 1000줄까지 요청 가능', big.body.limit === 1000, big.body);
+    const over = await get('/api/board?game=1&limit=1001');
+    t('1000줄을 넘기면 1000으로 잘림', over.body.limit === 1000, over.body);
+  }
+
   await new Promise(r => server.close(r));
   console.log(fail ? '\n' + fail + ' FAILED' : '\nALL PASS');
   process.exit(fail ? 1 : 0);

@@ -104,6 +104,8 @@ t('속도칸 간격이 side 간격과 동일',
   /\.side\{[^}]*gap:7px/.test(html) && /\.speeds\{display:grid;grid-template-columns:repeat\(3,1fr\);gap:7px\}/.test(html));
 t('Save 가 Load 보다 앞', html.indexOf('id="save"') < html.indexOf('id="load"'));
 t('Submit 은 Load 바로 아래', html.indexOf('id="load"') < html.indexOf('id="submit"'));
+t('Leaderboard 는 Awards 아래', html.indexOf('id="awards"') < html.indexOf('id="leaderboard"'));
+t('Leaderboard 는 속도칸 위', html.indexOf('id="leaderboard"') < html.indexOf('id="speeds"'));
 {
   // The request body must carry the maze and nothing resembling a score, so the
   // server has no client-supplied number it could be tempted to trust.

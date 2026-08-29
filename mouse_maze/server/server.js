@@ -237,7 +237,7 @@ function handleMe(res, url) {
 
 function handleBoard(res, url) {
   const game = Number(url.searchParams.get('game'));
-  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') || 20)));
+  const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit') || 20)));
   const offset = Math.max(0, Number(url.searchParams.get('offset') || 0));
   if (![1, 2].includes(game)) return send(res, 400, { error: 'Need game=1|2.' });
   // Mazes are never included: one player must not be able to read another's
